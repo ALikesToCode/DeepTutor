@@ -88,6 +88,7 @@ export class DeepTutorContainer extends Container {
   defaultPort = FRONTEND_PORT;
   requiredPorts = [BACKEND_PORT, FRONTEND_PORT];
   sleepAfter = "2h";
+  entrypoint = ["/app/entrypoint.sh"];
   envVars = buildContainerEnv();
 }
 
