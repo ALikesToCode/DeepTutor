@@ -12,6 +12,7 @@ from collections.abc import Awaitable, Callable
 from typing import cast
 
 from deeptutor.logging import get_logger
+from deeptutor.services.provider_registry import canonical_provider_name, find_by_name
 
 from .config import LLMConfig, get_llm_config
 from .utils import sanitize_url
@@ -47,8 +48,11 @@ class LLMClient:
 
         binding = getattr(self.config, "binding", "openai")
 
+        canonical = canonical_provider_name(binding) or binding
+        spec = find_by_name(canonical)
+
         # Only set env vars for OpenAI-compatible bindings
-        if binding in ("openai", "azure_openai", "gemini"):
+        if spec and spec.backend in {"openai_compat", "azure_openai"} and not spec.is_oauth:
             if self.config.api_key:
                 os.environ["OPENAI_API_KEY"] = self.config.api_key
                 self.logger.debug("Set OPENAI_API_KEY env var")

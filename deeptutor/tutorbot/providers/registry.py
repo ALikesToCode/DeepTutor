@@ -109,6 +109,17 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
     ),
     # === Gateways (detected by api_key / api_base, route any model) ========
     ProviderSpec(
+        name="navy",
+        keywords=("navy", "navyai"),
+        env_key="NAVY_API_KEY",
+        display_name="NavyAI",
+        backend="openai_compat",
+        is_gateway=True,
+        detect_by_key_prefix="sk-navy-",
+        detect_by_base_keyword="api.navy",
+        default_api_base="https://api.navy/v1",
+    ),
+    ProviderSpec(
         name="openrouter",
         keywords=("openrouter",),
         env_key="OPENROUTER_API_KEY",
@@ -379,10 +390,11 @@ def find_gateway(
         if spec and (spec.is_gateway or spec.is_local):
             return spec
 
+    base_lower = (api_base or "").lower()
     for spec in PROVIDERS:
         if spec.detect_by_key_prefix and api_key and api_key.startswith(spec.detect_by_key_prefix):
             return spec
-        if spec.detect_by_base_keyword and api_base and spec.detect_by_base_keyword in api_base:
+        if spec.detect_by_base_keyword and spec.detect_by_base_keyword in base_lower:
             return spec
     return None
 

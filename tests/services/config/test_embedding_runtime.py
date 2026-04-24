@@ -53,6 +53,7 @@ def _env(tmp_path: Path, lines: list[str]) -> EnvStore:
         "EMBEDDING_DIMENSION=",
         "EMBEDDING_API_VERSION=",
         "OPENAI_API_KEY=",
+        "NAVY_API_KEY=",
         "AZURE_OPENAI_API_KEY=",
         "AZURE_API_KEY=",
         "COHERE_API_KEY=",
@@ -156,6 +157,74 @@ def test_embedding_openai_default_base_injected(tmp_path: Path) -> None:
     resolved = resolve_embedding_runtime_config(catalog=catalog, env_store=_env(tmp_path, []))
     assert resolved.provider_name == "openai"
     assert resolved.effective_url == "https://api.openai.com/v1"
+
+
+def test_embedding_navy_explicit_binding_uses_gateway_defaults(tmp_path: Path) -> None:
+    catalog = _build_catalog(
+        embedding_profile={
+            "id": "embedding-p",
+            "name": "Embedding",
+            "binding": "navy",
+            "base_url": "",
+            "api_key": "sk-navy-test-key",
+            "api_version": "",
+            "extra_headers": {},
+            "models": [
+                {
+                    "id": "embedding-m",
+                    "name": "m",
+                    "model": "text-embedding-3-large",
+                    "dimension": "3072",
+                }
+            ],
+        }
+    )
+    resolved = resolve_embedding_runtime_config(catalog=catalog, env_store=_env(tmp_path, []))
+    assert resolved.provider_name == "navy"
+    assert resolved.provider_mode == "gateway"
+    assert resolved.effective_url == "https://api.navy/v1"
+    assert resolved.api_key == "sk-navy-test-key"
+    assert resolved.send_dimensions is False
+
+
+def test_embedding_navy_detected_from_openai_binding_host(tmp_path: Path) -> None:
+    catalog = _build_catalog(
+        embedding_profile={
+            "id": "embedding-p",
+            "name": "Embedding",
+            "binding": "openai",
+            "base_url": "https://api.navy/v1",
+            "api_key": "sk-test",
+            "api_version": "",
+            "extra_headers": {},
+            "models": [{"id": "embedding-m", "name": "m", "model": "text-embedding-3-large"}],
+        }
+    )
+    resolved = resolve_embedding_runtime_config(catalog=catalog, env_store=_env(tmp_path, []))
+    assert resolved.provider_name == "navy"
+    assert resolved.provider_mode == "gateway"
+    assert resolved.effective_url == "https://api.navy/v1"
+    assert resolved.send_dimensions is False
+
+
+def test_embedding_navy_detected_from_openai_binding_key_prefix(tmp_path: Path) -> None:
+    catalog = _build_catalog(
+        embedding_profile={
+            "id": "embedding-p",
+            "name": "Embedding",
+            "binding": "openai",
+            "base_url": "",
+            "api_key": "sk-navy-test-key",
+            "api_version": "",
+            "extra_headers": {},
+            "models": [{"id": "embedding-m", "name": "m", "model": "text-embedding-3-large"}],
+        }
+    )
+    resolved = resolve_embedding_runtime_config(catalog=catalog, env_store=_env(tmp_path, []))
+    assert resolved.provider_name == "navy"
+    assert resolved.provider_mode == "gateway"
+    assert resolved.effective_url == "https://api.navy/v1"
+    assert resolved.send_dimensions is False
 
 
 def test_embedding_send_dimensions_default_is_none(tmp_path: Path) -> None:

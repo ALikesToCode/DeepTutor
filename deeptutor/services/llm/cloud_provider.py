@@ -320,7 +320,7 @@ async def _openai_complete(
         max_tokens_value = max_completion_value
     if max_tokens_value is None:
         max_tokens_value = 4096
-    data.update(get_token_limit_kwargs(model, max_tokens_value))
+    data.update(get_token_limit_kwargs(model, max_tokens_value, binding=binding))
 
     # Include response_format if present in kwargs
     response_format = kwargs.get("response_format")
@@ -485,7 +485,7 @@ async def _openai_stream(
     if max_tokens_value is None:
         max_tokens_value = _coerce_int(kwargs.get("max_completion_tokens"), None)
     if max_tokens_value is not None:
-        data.update(get_token_limit_kwargs(model, max_tokens_value))
+        data.update(get_token_limit_kwargs(model, max_tokens_value, binding=binding))
 
     # Include response_format if present in kwargs
     response_format = kwargs.get("response_format")

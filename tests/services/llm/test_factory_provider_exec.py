@@ -202,6 +202,31 @@ async def test_complete_strips_unsupported_response_format(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_complete_translates_max_completion_tokens_for_navy(monkeypatch) -> None:
+    cfg = _make_cfg(
+        model="gpt-5.4-mini",
+        binding="navy",
+        provider_name="navy",
+        provider_mode="gateway",
+        base_url="https://api.navy/v1",
+        effective_url="https://api.navy/v1",
+    )
+    provider = _FakeProvider()
+
+    monkeypatch.setattr("deeptutor.services.llm.factory.get_llm_config", lambda: cfg)
+    monkeypatch.setattr(
+        "deeptutor.services.llm.factory.get_runtime_provider",
+        lambda _config: provider,
+    )
+
+    result = await complete("hello", max_completion_tokens=123)
+
+    assert result == "ok"
+    assert provider.complete_kwargs["max_tokens"] == 123
+    assert "max_completion_tokens" not in provider.complete_kwargs
+
+
+@pytest.mark.asyncio
 async def test_complete_passes_retry_delays(monkeypatch) -> None:
     cfg = _make_cfg()
     provider = _FakeProvider()

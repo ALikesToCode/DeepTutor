@@ -277,8 +277,14 @@ def _stub_resolved_llm():
     )
 
 
-def _real_get_token_limit_kwargs(model: str, max_tokens: int) -> dict[str, int]:
+def _real_get_token_limit_kwargs(
+    model: str,
+    max_tokens: int,
+    provider_name: str | None = None,
+    binding: str | None = None,
+) -> dict[str, int]:
     """Inline reimplementation to avoid importing the full LLM stack in tests."""
+    del provider_name, binding
     from deeptutor.services.llm.config import uses_max_completion_tokens
 
     if uses_max_completion_tokens(model):

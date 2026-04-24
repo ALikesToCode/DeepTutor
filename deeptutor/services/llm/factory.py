@@ -272,6 +272,11 @@ def _sanitize_call_kwargs(
 
     if not supports_response_format(binding, model):
         extra_kwargs.pop("response_format", None)
+    spec = find_by_name(binding)
+    if spec and not spec.supports_max_completion_tokens:
+        max_completion_tokens = extra_kwargs.pop("max_completion_tokens", None)
+        if max_completion_tokens is not None and "max_tokens" not in extra_kwargs:
+            extra_kwargs["max_tokens"] = max_completion_tokens
     return extra_kwargs
 
 

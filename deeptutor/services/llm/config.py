@@ -295,17 +295,30 @@ def uses_max_completion_tokens(model: str) -> bool:
     return False
 
 
-def get_token_limit_kwargs(model: str, max_tokens: int) -> dict[str, int]:
+def get_token_limit_kwargs(
+    model: str,
+    max_tokens: int,
+    provider_name: str | None = None,
+    binding: str | None = None,
+) -> dict[str, int]:
     """
     Get the appropriate token limit parameter for the model.
 
     Args:
         model: The model name
         max_tokens: The desired token limit
+        provider_name: Optional resolved provider name.
+        binding: Optional provider binding alias.
 
     Returns:
         Dictionary with either {"max_tokens": value} or {"max_completion_tokens": value}
     """
+    provider = find_by_name(provider_name or binding)
+    if provider is not None:
+        if provider.supports_max_completion_tokens and uses_max_completion_tokens(model):
+            return {"max_completion_tokens": max_tokens}
+        return {"max_tokens": max_tokens}
+
     if uses_max_completion_tokens(model):
         return {"max_completion_tokens": max_tokens}
     return {"max_tokens": max_tokens}

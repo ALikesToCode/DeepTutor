@@ -171,7 +171,11 @@ async def sdk_complete(
         "temperature": temperature_val,
     }
 
-    token_kwargs = get_token_limit_kwargs(resolved_model, max_tokens_val)
+    token_kwargs = get_token_limit_kwargs(
+        resolved_model,
+        max_tokens_val,
+        provider_name=provider_name,
+    )
     payload.update(token_kwargs)
 
     if reasoning_effort:
@@ -238,7 +242,11 @@ async def sdk_stream(
         "stream": True,
     }
 
-    token_kwargs = get_token_limit_kwargs(resolved_model, max_tokens_val)
+    token_kwargs = get_token_limit_kwargs(
+        resolved_model,
+        max_tokens_val,
+        provider_name=provider_name,
+    )
     payload.update(token_kwargs)
 
     if reasoning_effort:

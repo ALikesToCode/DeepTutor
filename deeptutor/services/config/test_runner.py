@@ -189,7 +189,10 @@ class ConfigTestRunner:
         probe_params = get_agent_params("llm_probe")
         max_tokens = max(1, int(probe_params.get("max_tokens", 1024)))
         token_kwargs: dict[str, Any] = get_token_limit_kwargs(
-            llm_config.model, max_tokens=max_tokens
+            llm_config.model,
+            max_tokens=max_tokens,
+            provider_name=llm_config.provider_name,
+            binding=llm_config.binding,
         )
         run.emit("info", f"Token options: {json.dumps(token_kwargs)}")
         response = await llm_complete(
