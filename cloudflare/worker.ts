@@ -10,6 +10,8 @@ const stringEnv = cloudflareEnv as unknown as Record<string, string | undefined>
 const DEFAULT_ENV = {
   BACKEND_PORT: "8001",
   FRONTEND_PORT: "3782",
+  DEEPTUTOR_AUTH_ENABLED: "",
+  DEEPTUTOR_AUTH_MAX_AGE_SECONDS: "604800",
   NEXT_PUBLIC_API_BASE_EXTERNAL: "same-origin",
   LLM_BINDING: "openai",
   LLM_MODEL: "gpt-4o-mini",
@@ -32,6 +34,8 @@ const DEFAULT_ENV = {
 } as const;
 
 const SECRET_ENV_NAMES = [
+  "DEEPTUTOR_AUTH_PASSWORD",
+  "DEEPTUTOR_AUTH_SECRET",
   "LLM_API_KEY",
   "EMBEDDING_API_KEY",
   "SEARCH_API_KEY",
@@ -83,6 +87,7 @@ function buildContainerEnv(): Record<string, string> {
 
 const BACKEND_PORT = envPort("BACKEND_PORT", 8001);
 const FRONTEND_PORT = envPort("FRONTEND_PORT", 3782);
+const AUTH_COOKIE_NAME = "deeptutor_access";
 const CONTAINER_ENTRYPOINT = ["/bin/bash", "/app/entrypoint.sh"];
 const START_TIMEOUTS = {
   instanceGetTimeoutMS: 120_000,
@@ -130,7 +135,100 @@ export class DeepTutorContainer extends Container {
 
 function isBackendRequest(request: Request): boolean {
   const url = new URL(request.url);
+  if (url.pathname === "/api/auth" || url.pathname.startsWith("/api/auth/")) {
+    return false;
+  }
   return url.pathname === "/api" || url.pathname.startsWith("/api/");
+}
+
+function isAuthEnabled(): boolean {
+  const flag = envValue("DEEPTUTOR_AUTH_ENABLED").trim().toLowerCase();
+  const password = envValue("DEEPTUTOR_AUTH_PASSWORD").trim();
+
+  if (["0", "false", "no", "off"].includes(flag)) {
+    return false;
+  }
+
+  return password.length > 0;
+}
+
+function isPublicRequest(request: Request): boolean {
+  const url = new URL(request.url);
+  return (
+    url.pathname === "/login" ||
+    url.pathname === "/favicon.ico" ||
+    url.pathname === "/favicon-16x16.png" ||
+    url.pathname === "/favicon-32x32.png" ||
+    url.pathname === "/apple-touch-icon.png" ||
+    url.pathname === "/logo.png" ||
+    url.pathname === "/logo-ver2.png" ||
+    url.pathname.startsWith("/api/auth/") ||
+    url.pathname.startsWith("/_next/")
+  );
+}
+
+function cookieValue(request: Request, name: string): string {
+  const cookie = request.headers.get("cookie") ?? "";
+  const prefix = `${name}=`;
+  for (const part of cookie.split(";")) {
+    const trimmed = part.trim();
+    if (trimmed.startsWith(prefix)) {
+      return decodeURIComponent(trimmed.slice(prefix.length));
+    }
+  }
+  return "";
+}
+
+function base64Url(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+}
+
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+
+  let diff = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+async function authToken(): Promise<string> {
+  const password = envValue("DEEPTUTOR_AUTH_PASSWORD").trim();
+  const secret = envValue("DEEPTUTOR_AUTH_SECRET").trim() || password;
+  const material = `deeptutor-auth:v1:${password}:${secret}`;
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(material));
+  return `v1.${base64Url(new Uint8Array(digest))}`;
+}
+
+async function isAuthenticated(request: Request): Promise<boolean> {
+  const token = cookieValue(request, AUTH_COOKIE_NAME);
+  if (!token) return false;
+  return constantTimeEqual(token, await authToken());
+}
+
+function wantsHtml(request: Request): boolean {
+  const accept = request.headers.get("accept") ?? "";
+  return accept.includes("text/html") || accept === "*/*";
+}
+
+async function requireAuth(request: Request): Promise<Response | null> {
+  if (!isAuthEnabled() || isPublicRequest(request) || (await isAuthenticated(request))) {
+    return null;
+  }
+
+  if (!wantsHtml(request)) {
+    return Response.json({ error: "unauthenticated" }, { status: 401 });
+  }
+
+  const requestUrl = new URL(request.url);
+  const loginUrl = new URL("/login", requestUrl.origin);
+  loginUrl.searchParams.set("next", `${requestUrl.pathname}${requestUrl.search}`);
+  return Response.redirect(loginUrl.toString(), 302);
 }
 
 export default {
@@ -139,6 +237,11 @@ export default {
 
     if (url.pathname === "/_worker/health") {
       return Response.json({ ok: true, service: "deeptutor" });
+    }
+
+    const authResponse = await requireAuth(request);
+    if (authResponse) {
+      return authResponse;
     }
 
     const container = getContainer(env.DEEPTUTOR_CONTAINER);

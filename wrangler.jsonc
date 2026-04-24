@@ -9,6 +9,8 @@
   "vars": {
     "BACKEND_PORT": "8001",
     "FRONTEND_PORT": "3782",
+    "DEEPTUTOR_AUTH_ENABLED": "",
+    "DEEPTUTOR_AUTH_MAX_AGE_SECONDS": "604800",
     "NEXT_PUBLIC_API_BASE_EXTERNAL": "same-origin",
     "LLM_BINDING": "openai",
     "LLM_MODEL": "gpt-4o-mini",
