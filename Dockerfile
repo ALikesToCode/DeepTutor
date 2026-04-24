@@ -318,8 +318,26 @@ echo "   - data/user/settings/main.yaml"
 echo "   - data/user/settings/agents.yaml"
 echo "============================================"
 
-# Start supervisord
-exec /usr/bin/supervisord -c /etc/supervisor/conf.d/deeptutor.conf
+# Start both services directly. If either one exits, stop the container so the
+# platform reports a real startup failure instead of a running process with no ports.
+/bin/bash /app/start-backend.sh &
+BACKEND_PID=$!
+
+/bin/bash /app/start-frontend.sh &
+FRONTEND_PID=$!
+
+cleanup() {
+    kill "${BACKEND_PID}" "${FRONTEND_PID}" 2>/dev/null || true
+    wait "${BACKEND_PID}" "${FRONTEND_PID}" 2>/dev/null || true
+}
+
+trap cleanup INT TERM
+
+wait -n "${BACKEND_PID}" "${FRONTEND_PID}"
+EXIT_CODE=$?
+echo "A DeepTutor service exited with status ${EXIT_CODE}; shutting down container."
+cleanup
+exit "${EXIT_CODE}"
 EOF
 
 RUN sed -i 's/\r$//' /app/entrypoint.sh && chmod +x /app/entrypoint.sh
