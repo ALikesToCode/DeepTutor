@@ -1,0 +1,20 @@
+{
+  "name": "deeptutor-cloudflare",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "cf:check": "tsc --noEmit -p cloudflare/tsconfig.json",
+    "cf:deploy": "wrangler deploy",
+    "cf:tail": "wrangler tail",
+    "cf:containers:list": "wrangler containers list",
+    "cf:containers:images": "wrangler containers images list"
+  },
+  "dependencies": {
+    "@cloudflare/containers": "^0.3.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260424.1",
+    "typescript": "^6.0.3",
+    "wrangler": "^4.85.0"
+  }
+}

@@ -36,6 +36,16 @@ function isLoopbackHost(host: string): boolean {
   return LOOPBACK_HOSTS.has(host.toLowerCase());
 }
 
+function isSameOriginBase(base: string): boolean {
+  const normalized = base.trim().toLowerCase().replace(/\/+$/, "");
+  return (
+    normalized === "" ||
+    normalized === "." ||
+    normalized === "same-origin" ||
+    normalized === "self"
+  );
+}
+
 /**
  * Resolve the effective API base URL at runtime.
  *
@@ -51,6 +61,10 @@ function isLoopbackHost(host: string): boolean {
  */
 export function resolveBase(): string {
   const base = API_BASE_URL;
+  if (isSameOriginBase(base)) {
+    if (typeof window === "undefined") return "";
+    return window.location.origin;
+  }
   if (typeof window === "undefined") return base;
   try {
     const url = new URL(base);

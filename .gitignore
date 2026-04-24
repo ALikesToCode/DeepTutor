@@ -79,6 +79,11 @@ web/out/
 # Auto-generated env.local (created by start_web.py / start_tour.py)
 web/.env.local
 
+# Wrangler local development secrets
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+
 # Frontend build artifacts
 dist/
 web/dist/
