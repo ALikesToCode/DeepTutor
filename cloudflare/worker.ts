@@ -83,7 +83,7 @@ function buildContainerEnv(): Record<string, string> {
 
 const BACKEND_PORT = envPort("BACKEND_PORT", 8001);
 const FRONTEND_PORT = envPort("FRONTEND_PORT", 3782);
-const CONTAINER_ENTRYPOINT = ["/app/entrypoint.sh"];
+const CONTAINER_ENTRYPOINT = ["/bin/bash", "/app/entrypoint.sh"];
 const START_TIMEOUTS = {
   instanceGetTimeoutMS: 120_000,
   portReadyTimeoutMS: 180_000,
