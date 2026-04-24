@@ -1,0 +1,27 @@
+short_description: "Generate NavyAI image or video assets for notes, infographics, diagrams, slide visuals, and short teaching clips."
+when_to_use: "Use when the user asks for a visual learning asset, slide/lecture visual, infographic, diagram-style illustration, or video clip rather than just text."
+input_format: "A detailed visual prompt plus optional output_type=image|video, purpose=notes|infographic|slides, model, aspect_ratio, seconds, or job_id."
+guideline: "Write a complete visual prompt with topic, layout, visual hierarchy, labels, style, and constraints. Prefer image for notes/infographics/slides; use video only for motion or step-by-step explanation."
+note: "For video jobs, prefer returning the job ID unless the user explicitly wants to wait for polling. Never invent asset URLs; use only returned URLs, file paths, or job IDs."
+phase: "synthesis"
+aliases:
+  - name: image_generation
+    description: "Generate a still image through NavyAI."
+    input_format: "Detailed visual prompt."
+    when_to_use: "Use for diagrams, note visuals, and still illustrations."
+    phase: "synthesis"
+  - name: video_generation
+    description: "Generate a short video through NavyAI."
+    input_format: "Detailed visual prompt with seconds and motion notes."
+    when_to_use: "Use when movement, transformation, or step-by-step visual explanation matters."
+    phase: "synthesis"
+  - name: generate_infographic
+    description: "Generate a 16:9 educational infographic."
+    input_format: "Topic, key sections, labels, and design style."
+    when_to_use: "Use for summary cards, comparison charts, and concept maps."
+    phase: "synthesis"
+  - name: generate_slide_visual
+    description: "Generate a slide-ready 16:9 visual."
+    input_format: "Slide topic, audience, layout, and any required labels."
+    when_to_use: "Use for lecture slides, presentation covers, or one-slide explainers."
+    phase: "synthesis"

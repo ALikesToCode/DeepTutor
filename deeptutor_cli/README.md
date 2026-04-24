@@ -42,7 +42,7 @@ deeptutor run <capability> <message> [options]
 
 | 选项 | 缩写 | 说明 |
 |------|------|------|
-| `--tool` | `-t` | 启用工具（可多次指定）：`rag`, `web_search`, `code_execution`, `reason`, `brainstorm`, `paper_search` |
+| `--tool` | `-t` | 启用工具（可多次指定）：`rag`, `web_search`, `code_execution`, `reason`, `brainstorm`, `paper_search`, `media_generation` |
 | `--kb` | | 挂载知识库 |
 | `--language` | `-l` | 回复语言（默认 `en`） |
 | `--session` | | 继续已有会话 |

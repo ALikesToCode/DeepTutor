@@ -113,7 +113,7 @@ Before you begin, make sure the following are installed on your system:
 | [Node.js](https://nodejs.org/) | 18+ | `node --version` | Frontend build (not needed for CLI-only or Docker) |
 | [npm](https://www.npmjs.com/) | 9+ | `npm --version` | Bundled with Node.js |
 
-You'll also need an **API key** from at least one LLM provider (e.g. [OpenAI](https://platform.openai.com/api-keys), [DeepSeek](https://platform.deepseek.com/), [Anthropic](https://console.anthropic.com/)). The Setup Tour will walk you through entering it.
+You'll also need an **API key** from at least one LLM provider (e.g. [OpenAI](https://platform.openai.com/api-keys), [NavyAI](https://api.navy/), [DeepSeek](https://platform.deepseek.com/), [Anthropic](https://console.anthropic.com/)). The Setup Tour will walk you through entering it.
 
 ### Option A — Setup Tour (Recommended)
 
@@ -196,6 +196,11 @@ EMBEDDING_HOST=https://api.openai.com/v1
 EMBEDDING_DIMENSION=3072
 ```
 
+For NavyAI, use `LLM_BINDING=navy` / `EMBEDDING_BINDING=navy`, a
+`sk-navy-...` key, and `https://api.navy/v1` as the host. Set
+`EMBEDDING_SEND_DIMENSIONS=false` unless you have confirmed your NavyAI model
+accepts the optional `dimensions` request parameter.
+
 <details>
 <summary><b>Supported LLM Providers</b></summary>
 
@@ -219,6 +224,7 @@ EMBEDDING_DIMENSION=3072
 | MiniMax (Anthropic) | `minimax_anthropic` | `https://api.minimaxi.com/anthropic` |
 | Mistral | `mistral` | `https://api.mistral.ai/v1` |
 | Moonshot | `moonshot` | `https://api.moonshot.cn/v1` |
+| NavyAI | `navy` | `https://api.navy/v1` |
 | Ollama | `ollama` | `http://localhost:11434/v1` |
 | OpenAI | `openai` | `https://api.openai.com/v1` |
 | OpenAI Codex | `openai_codex` | `https://chatgpt.com/backend-api` |
@@ -241,6 +247,7 @@ EMBEDDING_DIMENSION=3072
 | Provider | Binding | Model Example | Default Dim |
 |:--|:--|:--|:--|
 | OpenAI | `openai` | `text-embedding-3-large` | 3072 |
+| NavyAI | `navy` | `text-embedding-3-large` | 3072 |
 | Azure OpenAI | `azure_openai` | deployment name | — |
 | Cohere | `cohere` | `embed-v4.0` | 1024 |
 | Jina | `jina` | `jina-embeddings-v3` | 1024 |
@@ -248,7 +255,7 @@ EMBEDDING_DIMENSION=3072
 | vLLM / LM Studio | `vllm` | Any embedding model | — |
 | Any OpenAI-compatible | `custom` | — | — |
 
-OpenAI-compatible providers (DashScope, SiliconFlow, etc.) work via the `custom` or `openai` binding.
+OpenAI-compatible providers (DashScope, SiliconFlow, etc.) work via the `custom` or `openai` binding. NavyAI has a first-class `navy` binding because its public model catalog covers chat and embeddings behind the same gateway.
 
 </details>
 
@@ -412,6 +419,10 @@ These directories survive `docker compose down` and are reused on the next `dock
 | `EMBEDDING_API_KEY` | **Yes** | Embedding API key |
 | `EMBEDDING_HOST` | **Yes** | Embedding endpoint |
 | `EMBEDDING_DIMENSION` | **Yes** | Vector dimension |
+| `NAVY_API_KEY` | No | NavyAI key for `media_generation` image/video assets |
+| `NAVY_API_BASE` | No | NavyAI base URL (default `https://api.navy/v1`) |
+| `NAVY_IMAGE_MODEL` | No | Default image model for media generation (`gpt-image-2`) |
+| `NAVY_VIDEO_MODEL` | No | Default video model for media generation (`grok-imagine-video`) |
 | `SEARCH_PROVIDER` | No | Search provider (`tavily`, `jina`, `serper`, `perplexity`, etc.) |
 | `SEARCH_API_KEY` | No | Search API key |
 | `BACKEND_PORT` | No | Backend port (default `8001`) |
@@ -464,14 +475,14 @@ Six distinct modes coexist in a single workspace, bound by a **unified context m
 
 | Mode | What It Does |
 |:---|:---|
-| **Chat** | Fluid, tool-augmented conversation. Choose from RAG retrieval, web search, code execution, deep reasoning, brainstorming, and paper search — mix and match as needed. |
+| **Chat** | Fluid, tool-augmented conversation. Choose from RAG retrieval, web search, code execution, deep reasoning, brainstorming, paper search, and NavyAI media generation — mix and match as needed. |
 | **Deep Solve** | Multi-agent problem solving: plan, investigate, solve, and verify — with precise source citations at every step. |
 | **Quiz Generation** | Generate assessments grounded in your knowledge base, with built-in validation. |
 | **Deep Research** | Decompose a topic into subtopics, dispatch parallel research agents across RAG, web, and academic papers, and produce a fully cited report. |
 | **Math Animator** | Turn mathematical concepts into visual animations and storyboards powered by Manim. |
 | **Visualize** | Generate interactive SVG diagrams, Chart.js charts, Mermaid graphs, or self-contained HTML pages from natural language descriptions. |
 
-Tools are **decoupled from workflows** — in every mode, you decide which tools to enable, how many to use, or whether to use any at all. The workflow orchestrates the reasoning; the tools are yours to compose.
+Tools are **decoupled from workflows** — in every mode, you decide which tools to enable, how many to use, or whether to use any at all. The workflow orchestrates the reasoning; the tools are yours to compose. Enable `media_generation` when you want DeepTutor to create image/video assets for notes, infographics, slide visuals, or short explanatory clips through NavyAI.
 
 > Start with a quick chat question, escalate to Deep Solve when it gets hard, visualize a concept, generate quiz questions to test yourself, then launch a Deep Research to go deeper — all in one continuous thread.
 

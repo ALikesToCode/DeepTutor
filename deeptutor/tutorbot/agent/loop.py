@@ -152,6 +152,7 @@ class AgentLoop:
         from deeptutor.tutorbot.agent.tools.deeptutor_tools import (
             BrainstormAdapterTool,
             CodeExecutionAdapterTool,
+            MediaGenerationAdapterTool,
             PaperSearchAdapterTool,
             RAGAdapterTool,
             ReasonAdapterTool,
@@ -163,6 +164,7 @@ class AgentLoop:
             CodeExecutionAdapterTool,
             ReasonAdapterTool,
             PaperSearchAdapterTool,
+            MediaGenerationAdapterTool,
         ):
             self.tools.register(tool_cls())
 

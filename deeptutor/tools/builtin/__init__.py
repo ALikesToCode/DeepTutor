@@ -498,6 +498,214 @@ class GeoGebraAnalysisTool(_PromptHintsMixin, BaseTool):
         )
 
 
+class MediaGenerationTool(_PromptHintsMixin, BaseTool):
+    """Generate NavyAI image/video assets for notes, infographics, and slides."""
+
+    def get_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="media_generation",
+            description=(
+                "Generate or poll image/video assets through NavyAI for learning notes, "
+                "infographics, slide visuals, diagrams, and short explanatory clips."
+            ),
+            parameters=[
+                ToolParameter(
+                    name="prompt",
+                    type="string",
+                    description=(
+                        "Detailed visual prompt. Include the lesson topic, layout, labels, "
+                        "style, and any text that should appear."
+                    ),
+                    required=False,
+                ),
+                ToolParameter(
+                    name="output_type",
+                    type="string",
+                    description="Generate an image or video.",
+                    required=False,
+                    default="image",
+                    enum=["image", "video"],
+                ),
+                ToolParameter(
+                    name="purpose",
+                    type="string",
+                    description="Learning asset type to optimize the prompt for.",
+                    required=False,
+                    default="general",
+                    enum=["general", "notes", "infographic", "slides"],
+                ),
+                ToolParameter(
+                    name="model",
+                    type="string",
+                    description=(
+                        "Optional NavyAI image/video model ID, such as dall-e-3, flux, "
+                        "gpt-image-1.5, cogvideox-flash, grok-imagine-video, or veo-3.1."
+                    ),
+                    required=False,
+                ),
+                ToolParameter(
+                    name="size",
+                    type="string",
+                    description='Image size or aspect ratio, e.g. "1024x1024" or "16:9".',
+                    required=False,
+                ),
+                ToolParameter(
+                    name="aspect_ratio",
+                    type="string",
+                    description='Aspect ratio for models that prefer it, e.g. "16:9".',
+                    required=False,
+                ),
+                ToolParameter(
+                    name="negative_prompt",
+                    type="string",
+                    description="What to avoid in the generated asset.",
+                    required=False,
+                ),
+                ToolParameter(
+                    name="image_url",
+                    type="string",
+                    description="Optional reference image URL or base64 data URI for editing.",
+                    required=False,
+                ),
+                ToolParameter(
+                    name="seconds",
+                    type="number",
+                    description="Video duration from 0 to 10 seconds.",
+                    required=False,
+                ),
+                ToolParameter(
+                    name="seed",
+                    type="integer",
+                    description="Optional seed for reproducible generation.",
+                    required=False,
+                ),
+                ToolParameter(
+                    name="quality",
+                    type="string",
+                    description="Optional quality hint.",
+                    required=False,
+                    enum=["low", "medium"],
+                ),
+                ToolParameter(
+                    name="style",
+                    type="string",
+                    description="Optional DALL-E style hint.",
+                    required=False,
+                    enum=["vivid", "natural"],
+                ),
+                ToolParameter(
+                    name="response_format",
+                    type="string",
+                    description="Return hosted URLs or base64 JSON when supported.",
+                    required=False,
+                    default="url",
+                    enum=["url", "b64_json"],
+                ),
+                ToolParameter(
+                    name="sync",
+                    type="boolean",
+                    description="Whether NavyAI should return the final asset synchronously when supported.",
+                    required=False,
+                ),
+                ToolParameter(
+                    name="poll",
+                    type="boolean",
+                    description="Poll an async NavyAI job until completion. Use sparingly for videos.",
+                    required=False,
+                    default=False,
+                ),
+                ToolParameter(
+                    name="poll_interval",
+                    type="number",
+                    description="Polling interval in seconds for async jobs.",
+                    required=False,
+                    default=3,
+                ),
+                ToolParameter(
+                    name="timeout_seconds",
+                    type="number",
+                    description="Maximum seconds to wait when polling an async job.",
+                    required=False,
+                    default=600,
+                ),
+                ToolParameter(
+                    name="job_id",
+                    type="string",
+                    description="Existing NavyAI async job ID to poll instead of creating a new asset.",
+                    required=False,
+                ),
+            ],
+        )
+
+    async def execute(self, **kwargs: Any) -> ToolResult:
+        from deeptutor.tools.media_generation import generate_media
+
+        result = await generate_media(
+            prompt=str(kwargs.get("prompt") or ""),
+            output_type=str(kwargs.get("output_type") or "image"),
+            purpose=str(kwargs.get("purpose") or "general"),
+            model=kwargs.get("model"),
+            size=kwargs.get("size"),
+            aspect_ratio=kwargs.get("aspect_ratio"),
+            image_url=kwargs.get("image_url"),
+            negative_prompt=kwargs.get("negative_prompt"),
+            seed=kwargs.get("seed"),
+            quality=kwargs.get("quality"),
+            style=kwargs.get("style"),
+            seconds=kwargs.get("seconds"),
+            sync=kwargs.get("sync"),
+            response_format=kwargs.get("response_format", "url"),
+            job_id=kwargs.get("job_id"),
+            poll=kwargs.get("poll"),
+            poll_interval=kwargs.get("poll_interval", 3),
+            timeout_seconds=kwargs.get("timeout_seconds", 600),
+            api_key=kwargs.get("api_key"),
+            base_url=kwargs.get("base_url"),
+            output_dir=kwargs.get("output_dir"),
+        )
+
+        assets = result.get("assets") or []
+        job_id = result.get("job_id") or ""
+        status = result.get("status") or "unknown"
+        model = result.get("model") or kwargs.get("model") or ""
+        output_type = result.get("output_type") or kwargs.get("output_type") or "image"
+
+        lines = [
+            f"NavyAI {output_type} generation status: {status}.",
+        ]
+        if model:
+            lines.append(f"Model: `{model}`.")
+        if job_id:
+            lines.append(f"Job ID: `{job_id}`.")
+        if assets:
+            lines.append("Assets:")
+            for asset in assets:
+                location = asset.get("url") or asset.get("path") or ""
+                if location:
+                    lines.append(f"- {asset.get('type', output_type)}: {location}")
+        elif job_id:
+            lines.append("No final asset yet. Poll this job ID later to retrieve the result.")
+        else:
+            lines.append("No asset URL or base64 payload was returned.")
+
+        return ToolResult(
+            content="\n".join(lines),
+            sources=[
+                {
+                    "type": "media",
+                    "provider": "navy",
+                    "media_type": asset.get("type", output_type),
+                    "url": asset.get("url", ""),
+                    "file": asset.get("path", ""),
+                    "model": model,
+                }
+                for asset in assets
+            ],
+            metadata=result,
+            success=status not in {"failed", "error"},
+        )
+
+
 BUILTIN_TOOL_TYPES: tuple[type[BaseTool], ...] = (
     BrainstormTool,
     RAGTool,
@@ -505,6 +713,7 @@ BUILTIN_TOOL_TYPES: tuple[type[BaseTool], ...] = (
     CodeExecutionTool,
     ReasonTool,
     PaperSearchToolWrapper,
+    MediaGenerationTool,
     GeoGebraAnalysisTool,
 )
 
@@ -516,6 +725,16 @@ TOOL_ALIASES: dict[str, tuple[str, dict[str, Any]]] = {
     "rag_search": ("rag", {}),
     "code_execute": ("code_execution", {}),
     "run_code": ("code_execution", {}),
+    "image_generation": ("media_generation", {"output_type": "image"}),
+    "video_generation": ("media_generation", {"output_type": "video"}),
+    "generate_infographic": (
+        "media_generation",
+        {"output_type": "image", "purpose": "infographic", "aspect_ratio": "16:9"},
+    ),
+    "generate_slide_visual": (
+        "media_generation",
+        {"output_type": "image", "purpose": "slides", "aspect_ratio": "16:9"},
+    ),
 }
 
 __all__ = [
@@ -525,6 +744,7 @@ __all__ = [
     "BrainstormTool",
     "CodeExecutionTool",
     "GeoGebraAnalysisTool",
+    "MediaGenerationTool",
     "PaperSearchToolWrapper",
     "RAGTool",
     "ReasonTool",

@@ -15,6 +15,7 @@ from deeptutor.tools.builtin import (
     BrainstormTool,
     CodeExecutionTool,
     GeoGebraAnalysisTool,
+    MediaGenerationTool,
     PaperSearchToolWrapper,
     RAGTool,
     ReasonTool,
@@ -268,6 +269,49 @@ async def test_geogebra_analysis_tool_handles_success(monkeypatch: pytest.Monkey
     assert result.success is True
     assert "A=(0,0)" in result.content
     assert result.metadata["commands_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_media_generation_tool_wraps_navy_result(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+
+    async def fake_generate_media(**kwargs: Any) -> dict[str, Any]:
+        captured.update(kwargs)
+        return {
+            "provider": "navy",
+            "model": "gpt-image-2",
+            "output_type": "image",
+            "purpose": "infographic",
+            "status": "completed",
+            "job_id": "",
+            "assets": [
+                {
+                    "type": "image",
+                    "url": "https://cdn.example/asset.png",
+                }
+            ],
+        }
+
+    _install_module(
+        monkeypatch,
+        "deeptutor.tools.media_generation",
+        generate_media=fake_generate_media,
+    )
+
+    result = await MediaGenerationTool().execute(
+        prompt="Clean 16:9 infographic about photosynthesis",
+        purpose="infographic",
+        aspect_ratio="16:9",
+    )
+
+    assert result.success is True
+    assert "completed" in result.content
+    assert "https://cdn.example/asset.png" in result.content
+    assert result.sources[0]["type"] == "media"
+    assert result.sources[0]["url"] == "https://cdn.example/asset.png"
+    assert captured["prompt"] == "Clean 16:9 infographic about photosynthesis"
+    assert captured["purpose"] == "infographic"
+    assert captured["aspect_ratio"] == "16:9"
 
 
 @pytest.mark.asyncio

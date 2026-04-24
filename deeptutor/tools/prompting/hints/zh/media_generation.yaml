@@ -1,0 +1,27 @@
+short_description: "通过 NavyAI 生成用于笔记、信息图、图解、幻灯片和短教学视频的图片或视频素材。"
+when_to_use: "当用户需要视觉学习素材、课件图、信息图、图解插画或短视频，而不是纯文字回答时使用。"
+input_format: "详细视觉提示词，可附带 output_type=image|video、purpose=notes|infographic|slides、model、aspect_ratio、seconds 或 job_id。"
+guideline: "提示词要包含主题、版式、视觉层级、标签文字、风格和限制。笔记/信息图/幻灯片优先用 image；只有需要动态演示或步骤变化时才用 video。"
+note: "视频任务通常是异步生成；除非用户明确要求等待，否则优先返回 job ID。不要编造素材 URL，只使用工具返回的 URL、文件路径或 job ID。"
+phase: "synthesis"
+aliases:
+  - name: image_generation
+    description: "通过 NavyAI 生成静态图片。"
+    input_format: "详细视觉提示词。"
+    when_to_use: "用于图解、笔记视觉素材和静态插画。"
+    phase: "synthesis"
+  - name: video_generation
+    description: "通过 NavyAI 生成短视频。"
+    input_format: "包含时长和动态说明的详细视觉提示词。"
+    when_to_use: "当需要运动、变化或分步骤视觉讲解时使用。"
+    phase: "synthesis"
+  - name: generate_infographic
+    description: "生成 16:9 教育信息图。"
+    input_format: "主题、关键模块、标签和设计风格。"
+    when_to_use: "用于总结卡片、对比图和概念图。"
+    phase: "synthesis"
+  - name: generate_slide_visual
+    description: "生成适合幻灯片的 16:9 视觉素材。"
+    input_format: "幻灯片主题、受众、版式和必要标签。"
+    when_to_use: "用于课程幻灯片、演示封面或单页讲解图。"
+    phase: "synthesis"
