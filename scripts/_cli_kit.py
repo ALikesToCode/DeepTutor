@@ -147,6 +147,9 @@ def select(prompt: str, options: list[tuple[str, str, str]]) -> str:
 
     Returns the *value* of the chosen option.  Falls back to numbered
     input when stdin is not a tty.
+
+    Long lists are rendered as a scrolling window so they always fit on
+    screen without leaving stale rows behind when redrawing.
     """
     if not sys.stdin.isatty():
         return _select_fallback(prompt, options)
@@ -154,18 +157,60 @@ def select(prompt: str, options: list[tuple[str, str, str]]) -> str:
     idx = 0
     total = len(options)
 
+    # Reserve rows for: prompt + blank + (optional ↑) + (optional ↓) + blank + safety
+    term_rows = max(shutil.get_terminal_size((80, 24)).lines, 10)
+    max_window = max(5, min(total, term_rows - 6))
+    use_window = total > max_window
+    window_size = max_window if use_window else total
+
     print(dim(f"  {prompt}"))
+    if use_window:
+        print(dim(f"  ({total} options — use ↑/↓, Enter to confirm)"))
     print()
 
+    rendered_lines = 0  # how many lines the last _render() emitted
+
+    def _shorten(text: str, width: int) -> str:
+        if len(text) <= width:
+            return text
+        return textwrap.shorten(text, width=max(width, 5), placeholder="...")
+
     def _render() -> None:
-        for i, (_, label, desc) in enumerate(options):
+        nonlocal rendered_lines
+        if use_window:
+            half = window_size // 2
+            start = max(0, min(idx - half, total - window_size))
+            end = start + window_size
+        else:
+            start, end = 0, total
+
+        lines = 0
+        width = term_width()
+        option_width = max(width - 4, 5)
+        if use_window and start > 0:
+            hint = _shorten("  ↑ " + str(start) + " more above", option_width)
+            print(f"  {dim(hint)}")
+            lines += 1
+
+        for i in range(start, end):
+            _, label, desc = options[i]
+            raw_text = f"{label}  {desc}" if desc else label
+            text = _shorten(raw_text, option_width)
             if i == idx:
                 marker = accent("> ")
-                text = f"{bold(label)}  {dim(desc)}" if desc else bold(label)
+                text = bold(text)
             else:
                 marker = "  "
-                text = dim(f"{label}  {desc}") if desc else dim(label)
+                text = dim(text)
             print(f"  {marker}{text}")
+            lines += 1
+
+        if use_window and end < total:
+            hint = _shorten("  ↓ " + str(total - end) + " more below", option_width)
+            print(f"  {dim(hint)}")
+            lines += 1
+
+        rendered_lines = lines
 
     _render()
 
@@ -176,12 +221,12 @@ def select(prompt: str, options: list[tuple[str, str, str]]) -> str:
         elif key == "down":
             idx = (idx + 1) % total
         elif key == "enter":
-            # Move past the option block
-            sys.stdout.write(f"\033[{total}A")
+            sys.stdout.write(f"\033[{rendered_lines}A")
             sys.stdout.write("\033[J")
             chosen_label = options[idx][1]
             chosen_desc = options[idx][2]
-            print(f"  {accent('>')} {bold(chosen_label)}  {dim(chosen_desc)}")
+            chosen = _shorten(f"{chosen_label}  {chosen_desc}" if chosen_desc else chosen_label, max(term_width() - 4, 5))
+            print(f"  {accent('>')} {bold(chosen)}")
             print()
             return options[idx][0]
         elif key == "esc":
@@ -189,8 +234,7 @@ def select(prompt: str, options: list[tuple[str, str, str]]) -> str:
         else:
             continue
 
-        # Redraw: move cursor up by `total` lines, clear, re-render
-        sys.stdout.write(f"\033[{total}A")
+        sys.stdout.write(f"\033[{rendered_lines}A")
         sys.stdout.write("\033[J")
         _render()
 
