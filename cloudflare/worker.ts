@@ -83,13 +83,49 @@ function buildContainerEnv(): Record<string, string> {
 
 const BACKEND_PORT = envPort("BACKEND_PORT", 8001);
 const FRONTEND_PORT = envPort("FRONTEND_PORT", 3782);
+const CONTAINER_ENTRYPOINT = ["/app/entrypoint.sh"];
+const START_TIMEOUTS = {
+  instanceGetTimeoutMS: 120_000,
+  portReadyTimeoutMS: 180_000,
+  waitInterval: 1_000,
+};
 
 export class DeepTutorContainer extends Container {
   defaultPort = FRONTEND_PORT;
   requiredPorts = [BACKEND_PORT, FRONTEND_PORT];
   sleepAfter = "2h";
-  entrypoint = ["/app/entrypoint.sh"];
+  entrypoint = CONTAINER_ENTRYPOINT;
   envVars = buildContainerEnv();
+
+  async fetch(request: Request): Promise<Response> {
+    const targetPort = request.headers.has("cf-container-target-port")
+      ? Number.parseInt(request.headers.get("cf-container-target-port") ?? "", 10)
+      : this.defaultPort;
+
+    if (!Number.isInteger(targetPort)) {
+      return new Response("No valid container port configured.", { status: 500 });
+    }
+
+    try {
+      await this.startAndWaitForPorts({
+        ports: targetPort,
+        startOptions: {
+          envVars: this.envVars,
+          entrypoint: CONTAINER_ENTRYPOINT,
+          enableInternet: true,
+        },
+        cancellationOptions: {
+          abort: request.signal,
+          ...START_TIMEOUTS,
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return new Response(`Failed to start container: ${message}`, { status: 500 });
+    }
+
+    return this.containerFetch(request, targetPort);
+  }
 }
 
 function isBackendRequest(request: Request): boolean {
