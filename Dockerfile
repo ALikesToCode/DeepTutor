@@ -394,3 +394,11 @@ RUN sed -i 's/\r$//' /etc/supervisor/conf.d/deeptutor.conf
 
 # Development ports
 EXPOSE 8001 3782
+
+# ============================================
+# Stage 5: Default Cloud Image
+# ============================================
+# Wrangler builds the Dockerfile path directly and does not pass --target, so
+# keep the default final stage on the production image while preserving the
+# explicit development target above for local development workflows.
+FROM production AS cloudflare
