@@ -6,6 +6,7 @@ interface Env {
 }
 
 const stringEnv = cloudflareEnv as unknown as Record<string, string | undefined>;
+const textDecoder = new TextDecoder();
 
 const DEFAULT_ENV = {
   BACKEND_PORT: "8001",
@@ -32,6 +33,7 @@ const DEFAULT_ENV = {
 } as const;
 
 const SECRET_ENV_NAMES = [
+  "CONTAINER_DIAG_TOKEN",
   "LLM_API_KEY",
   "EMBEDDING_API_KEY",
   "SEARCH_API_KEY",
@@ -90,6 +92,24 @@ const START_TIMEOUTS = {
   waitInterval: 1_000,
 };
 
+interface ContainerExecOutput {
+  stdout: ArrayBuffer;
+  stderr: ArrayBuffer;
+  exitCode: number;
+}
+
+interface ContainerExecProcess {
+  output(): Promise<ContainerExecOutput>;
+}
+
+interface ContainerRuntime {
+  running: boolean;
+  exec(
+    cmd: string[],
+    options?: { stdout?: "pipe" | "ignore"; stderr?: "pipe" | "ignore" | "combined" },
+  ): Promise<ContainerExecProcess>;
+}
+
 export class DeepTutorContainer extends Container {
   defaultPort = FRONTEND_PORT;
   requiredPorts = [BACKEND_PORT, FRONTEND_PORT];
@@ -126,6 +146,43 @@ export class DeepTutorContainer extends Container {
 
     return this.containerFetch(request, targetPort);
   }
+
+  async diagnostics(): Promise<Response> {
+    const runtime = (this as unknown as { container?: ContainerRuntime }).container;
+
+    if (!runtime?.exec) {
+      return Response.json({ error: "container exec is unavailable" }, { status: 501 });
+    }
+
+    const proc = await runtime.exec(
+      [
+        "/bin/bash",
+        "-lc",
+        [
+          "set -o pipefail",
+          "echo '=== pid1 ==='",
+          "tr '\\0' ' ' < /proc/1/cmdline; echo",
+          "echo '=== processes ==='",
+          "ps -ef",
+          "echo '=== ports ==='",
+          "(ss -ltnp || netstat -ltnp || true) 2>&1",
+          "echo '=== supervisor ==='",
+          "supervisorctl -c /etc/supervisor/conf.d/deeptutor.conf status 2>&1 || true",
+          "echo '=== entrypoint ==='",
+          "ls -l /app/entrypoint.sh /app/start-backend.sh /app/start-frontend.sh",
+        ].join("; "),
+      ],
+      { stdout: "pipe", stderr: "combined" },
+    );
+    const output = await proc.output();
+
+    return Response.json({
+      running: runtime.running,
+      exitCode: output.exitCode,
+      stdout: textDecoder.decode(output.stdout),
+      stderr: textDecoder.decode(output.stderr),
+    });
+  }
 }
 
 function isBackendRequest(request: Request): boolean {
@@ -142,6 +199,17 @@ export default {
     }
 
     const container = getContainer(env.DEEPTUTOR_CONTAINER);
+
+    if (url.pathname === "/_worker/container/diagnostics") {
+      const token = envValue("CONTAINER_DIAG_TOKEN");
+      const auth = request.headers.get("authorization");
+
+      if (!token || auth !== `Bearer ${token}`) {
+        return new Response("Not found", { status: 404 });
+      }
+
+      return container.diagnostics();
+    }
 
     if (isBackendRequest(request)) {
       return container.fetch(switchPort(request, BACKEND_PORT));
