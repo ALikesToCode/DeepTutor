@@ -91,6 +91,16 @@ class KnowledgeBaseConfigService:
         with open(self.config_path, "w", encoding="utf-8") as handle:
             json.dump(self._config, handle, indent=2, ensure_ascii=False)
 
+    def _reload(self) -> None:
+        """Refresh cached config before a mutating write.
+
+        The service is a process-wide singleton, while status/progress updates
+        are also written by ``KnowledgeBaseManager`` instances. Reloading keeps
+        metadata edits from saving an older in-memory snapshot over a freshly
+        completed indexing run.
+        """
+        self._config = self._load_config()
+
     def _ensure_kb(self, kb_name: str) -> dict[str, Any]:
         knowledge_bases = self._config.setdefault("knowledge_bases", {})
         if kb_name not in knowledge_bases:
@@ -114,6 +124,7 @@ class KnowledgeBaseConfigService:
         return merged
 
     def set_kb_config(self, kb_name: str, config: dict[str, Any]) -> None:
+        self._reload()
         entry = self._ensure_kb(kb_name)
         entry.update(config)
         self._save()
@@ -131,6 +142,7 @@ class KnowledgeBaseConfigService:
         self.set_kb_config(kb_name, {"search_mode": mode})
 
     def delete_kb_config(self, kb_name: str) -> None:
+        self._reload()
         knowledge_bases = self._config.get("knowledge_bases", {})
         if kb_name in knowledge_bases:
             del knowledge_bases[kb_name]
@@ -140,11 +152,13 @@ class KnowledgeBaseConfigService:
         return self._config
 
     def set_global_defaults(self, defaults: dict[str, Any]) -> None:
+        self._reload()
         current = self._config.setdefault("defaults", _default_payload()["defaults"])
         current.update(defaults)
         self._save()
 
     def set_default_kb(self, kb_name: str | None) -> None:
+        self._reload()
         self._config.setdefault("defaults", _default_payload()["defaults"])["default_kb"] = kb_name
         self._save()
 

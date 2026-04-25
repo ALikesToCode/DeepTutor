@@ -247,8 +247,20 @@ const formatKnowledgeTimestamp = (value?: string): string | null => {
 const selectionFileId = (file: File): string =>
   `${file.name}:${file.size}:${file.lastModified}`;
 
-const resolveKbStatus = (kb: KnowledgeBase): string =>
-  kb.status ?? kb.statistics?.status ?? "unknown";
+const resolveKbProgress = (kb: KnowledgeBase): ProgressInfo | undefined =>
+  kb.progress ?? kb.statistics?.progress;
+
+const resolveKbStatus = (kb: KnowledgeBase): string => {
+  const status = kb.status ?? kb.statistics?.status ?? "unknown";
+  const progress = resolveKbProgress(kb);
+  if (
+    progress?.stage === "completed" &&
+    (status === "initializing" || status === "processing" || status === "unknown")
+  ) {
+    return "ready";
+  }
+  return status;
+};
 
 const kbNeedsReindex = (kb: KnowledgeBase): boolean =>
   Boolean(kb.statistics?.needs_reindex) ||
@@ -259,7 +271,7 @@ const kbIsUploadable = (kb: KnowledgeBase): boolean =>
 
 const kbHasLiveProgress = (kb: KnowledgeBase): boolean => {
   const status = resolveKbStatus(kb);
-  const stage = kb.progress?.stage;
+  const stage = resolveKbProgress(kb)?.stage;
   return (
     status !== "ready" &&
     status !== "error" &&
@@ -982,9 +994,8 @@ function KnowledgePageContent() {
 
       const nextProgressEntries: Record<string, ProgressInfo> = {};
       for (const kb of kbs) {
-        const status = kb.status ?? kb.statistics?.status;
-        const progress = kb.progress ?? kb.statistics?.progress;
-        const progressInfo = progress as ProgressInfo | undefined;
+        const status = resolveKbStatus(kb);
+        const progressInfo = resolveKbProgress(kb);
 
         if (status === "error" && progressInfo) {
           nextProgressEntries[kb.name] = progressInfo;
@@ -993,7 +1004,7 @@ function KnowledgePageContent() {
 
         if (kbHasLiveProgress({ ...kb, progress: progressInfo })) {
           nextProgressEntries[kb.name] = progressInfo || {};
-          const taskId = (progress as ProgressInfo | undefined)?.task_id;
+          const taskId = progressInfo?.task_id;
           subscribeProgress(kb.name, taskId || undefined);
         }
       }
@@ -1344,7 +1355,7 @@ function KnowledgePageContent() {
         ...kb,
         status: kb.status ?? kb.statistics?.status,
         progress:
-          progressMap[kb.name] || kb.progress || kb.statistics?.progress,
+          progressMap[kb.name] ?? kb.progress ?? kb.statistics?.progress,
       })),
     [knowledgeBases, progressMap],
   );
@@ -1374,7 +1385,7 @@ function KnowledgePageContent() {
       );
     }
     return null;
-  }, [uploadTargetKb]);
+  }, [t, uploadTargetKb]);
 
   const createDisabled =
     creating ||

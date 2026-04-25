@@ -21,6 +21,7 @@ from deeptutor.services.rag.factory import DEFAULT_PROVIDER
 from deeptutor.services.rag.file_routing import FileTypeRouter
 
 logger = get_logger("KnowledgeBaseManager")
+STALE_FINISHED_PROGRESS_SECONDS = 300
 
 
 # Cross-platform file locking
@@ -483,6 +484,66 @@ class KnowledgeBaseManager:
             fields["embedding_mismatch"] = True
         return fields
 
+    @staticmethod
+    def _read_progress_snapshot(kb_dir: Path) -> dict | None:
+        progress_file = kb_dir / ".progress.json"
+        if not progress_file.exists():
+            return None
+        try:
+            with open(progress_file, encoding="utf-8") as f:
+                progress = json.load(f)
+        except Exception as exc:
+            logger.debug(f"Failed to read progress snapshot for '{kb_dir.name}': {exc}")
+            return None
+        return progress if isinstance(progress, dict) else None
+
+    @staticmethod
+    def _progress_timestamp(progress: dict | None) -> datetime | None:
+        if not isinstance(progress, dict):
+            return None
+        raw_value = progress.get("timestamp")
+        if not isinstance(raw_value, str) or not raw_value:
+            return None
+        try:
+            return datetime.fromisoformat(raw_value)
+        except ValueError:
+            return None
+
+    @classmethod
+    def _is_stale_finished_progress(cls, progress: dict | None) -> bool:
+        """Return True for non-terminal progress that likely missed completion.
+
+        A ready KB can be left disabled when the final "completed" write is
+        lost but the last saved progress already reached 100%. Require both a
+        finished-looking counter and age to avoid classifying active uploads as
+        done.
+        """
+        if not isinstance(progress, dict):
+            return False
+        if progress.get("stage") in {"completed", "error"}:
+            return False
+
+        timestamp = cls._progress_timestamp(progress)
+        if timestamp is None:
+            return False
+
+        age_seconds = (datetime.now() - timestamp).total_seconds()
+        if age_seconds < STALE_FINISHED_PROGRESS_SECONDS:
+            return False
+
+        direct_percent = progress.get("progress_percent", progress.get("percent"))
+        if isinstance(direct_percent, (int, float)) and direct_percent >= 100:
+            return True
+
+        current = progress.get("current")
+        total = progress.get("total")
+        return (
+            isinstance(current, (int, float))
+            and isinstance(total, (int, float))
+            and total > 0
+            and current >= total
+        )
+
     def get_metadata(self, name: str | None = None) -> dict:
         """Get knowledge base metadata.
 
@@ -547,13 +608,22 @@ class KnowledgeBaseManager:
 
         # KB might not have a directory yet if still initializing
         dir_exists = kb_dir.exists()
+        raw_dir = kb_dir / "raw" if dir_exists else None
+        images_dir = kb_dir / "images" if dir_exists else None
+        content_list_dir = kb_dir / "content_list" if dir_exists else None
+        rag_storage_dir = kb_dir / "rag_storage" if dir_exists else None
+        llamaindex_storage_dir = kb_dir / "llamaindex_storage" if dir_exists else None
+        progress_snapshot = self._read_progress_snapshot(kb_dir) if dir_exists else None
+        has_llamaindex_storage = bool(
+            llamaindex_storage_dir
+            and llamaindex_storage_dir.exists()
+            and llamaindex_storage_dir.is_dir()
+        )
 
         # For old KBs without status field, determine status from rag_storage
         if needs_reindex:
             status = "needs_reindex"
         elif not status and dir_exists:
-            rag_storage_dir = kb_dir / "rag_storage"
-            llamaindex_storage_dir = kb_dir / "llamaindex_storage"
             if llamaindex_storage_dir.exists() and any(llamaindex_storage_dir.iterdir()):
                 status = "ready"
             elif rag_storage_dir.exists() and any(rag_storage_dir.iterdir()):
@@ -563,6 +633,47 @@ class KnowledgeBaseManager:
                 status = "unknown"
         elif not status:
             status = "unknown"
+
+        config_changed = False
+        completed_progress: dict | None = None
+        if isinstance(progress, dict) and progress.get("stage") == "completed":
+            completed_progress = progress
+        elif self._is_stale_finished_progress(progress):
+            completed_progress = progress
+        elif (
+            isinstance(progress_snapshot, dict)
+            and progress_snapshot.get("stage") == "completed"
+        ):
+            config_ts = self._progress_timestamp(progress)
+            snapshot_ts = self._progress_timestamp(progress_snapshot)
+            if config_ts is None or snapshot_ts is None or snapshot_ts >= config_ts:
+                completed_progress = progress_snapshot
+
+        if (
+            not needs_reindex
+            and status in {"initializing", "processing", "unknown"}
+            and completed_progress
+            and has_llamaindex_storage
+        ):
+            status = "ready"
+            progress = None
+            kb_config["status"] = "ready"
+            kb_config.pop("progress", None)
+            completed_at = completed_progress.get("timestamp")
+            if completed_at:
+                kb_config["last_completed_at"] = completed_at
+            kb_config["updated_at"] = datetime.now().isoformat()
+            config_changed = True
+        elif status == "ready" and progress is not None:
+            progress = None
+            kb_config.pop("progress", None)
+            config_changed = True
+
+        if config_changed:
+            try:
+                self._save_config()
+            except Exception as save_err:
+                logger.warning(f"Failed to persist normalized KB state: {save_err}")
 
         # Build metadata from kb_config.json (authoritative source)
         metadata = {
@@ -591,12 +702,6 @@ class KnowledgeBaseManager:
         }
 
         # Count files - handle errors gracefully
-        raw_dir = kb_dir / "raw" if dir_exists else None
-        images_dir = kb_dir / "images" if dir_exists else None
-        content_list_dir = kb_dir / "content_list" if dir_exists else None
-        rag_storage_dir = kb_dir / "rag_storage" if dir_exists else None
-        llamaindex_storage_dir = kb_dir / "llamaindex_storage" if dir_exists else None
-
         raw_count = 0
         images_count = 0
         content_lists_count = 0
@@ -622,12 +727,7 @@ class KnowledgeBaseManager:
                 pass
 
         # Check rag_initialized (llamaindex storage only)
-        rag_initialized = (
-            dir_exists
-            and llamaindex_storage_dir
-            and llamaindex_storage_dir.exists()
-            and llamaindex_storage_dir.is_dir()
-        )
+        rag_initialized = dir_exists and has_llamaindex_storage
 
         info["statistics"] = {
             "raw_documents": raw_count,
