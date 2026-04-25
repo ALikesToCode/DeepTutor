@@ -1658,13 +1658,11 @@ function KnowledgePageContent() {
                     accept={uploadPolicy.accept || undefined}
                     className="hidden"
                     onChange={(event) => {
+                      const pickedFiles = Array.from(event.currentTarget.files || []);
                       setNewKbFiles((prev) =>
-                        mergeSelectedFiles(
-                          prev,
-                          Array.from(event.target.files || []),
-                        ),
+                        mergeSelectedFiles(prev, pickedFiles),
                       );
-                      event.target.value = "";
+                      event.currentTarget.value = "";
                     }}
                   />
 
@@ -1833,13 +1831,11 @@ function KnowledgePageContent() {
                     accept={uploadPolicy.accept || undefined}
                     className="hidden"
                     onChange={(event) => {
+                      const pickedFiles = Array.from(event.currentTarget.files || []);
                       setUploadFiles((prev) =>
-                        mergeSelectedFiles(
-                          prev,
-                          Array.from(event.target.files || []),
-                        ),
+                        mergeSelectedFiles(prev, pickedFiles),
                       );
-                      event.target.value = "";
+                      event.currentTarget.value = "";
                     }}
                   />
 

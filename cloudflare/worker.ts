@@ -159,6 +159,9 @@ function isBackendRequest(request: Request): boolean {
   if (url.pathname === "/api/auth" || url.pathname.startsWith("/api/auth/")) {
     return false;
   }
+  if (url.pathname === "/api/version") {
+    return false;
+  }
   return url.pathname === "/api" || url.pathname.startsWith("/api/");
 }
 
