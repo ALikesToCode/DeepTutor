@@ -93,8 +93,23 @@ App traffic goes through one container instance:
 
 ## Persistence Note
 
-This setup intentionally uses `max_instances: 1` because DeepTutor currently
-stores runtime state under local `data/` paths. The R2 binding covers generated
-public file artifacts, but SQLite/session state, settings, notebooks, books, and
-knowledge-base indexes still require a single container instance until those
-stores are moved to managed services such as D1/Postgres/R2-aware adapters.
+Cloudflare Containers do not provide durable local storage. Per the
+[Containers lifecycle documentation](https://developers.cloudflare.com/containers/platform-details/),
+container disk is ephemeral: after an instance sleeps, the next start gets a
+fresh disk from the image. Treat `data/` as a cache only.
+
+Use Cloudflare managed storage for durable state:
+
+| DeepTutor state | Current local path | Cloudflare target | Notes |
+| --- | --- | --- | --- |
+| SQLite/session state | `data/user/chat_history.db` and session JSON | [D1](https://developers.cloudflare.com/d1/) or [Durable Objects SQLite](https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/) | Use D1 for normal relational tables. Use Durable Objects SQLite when one user/session/book needs strong single-owner coordination. |
+| Settings | `data/user/settings/*` | [D1](https://developers.cloudflare.com/d1/), [Workers KV](https://developers.cloudflare.com/kv/), or Durable Objects SQLite | Use D1 for structured per-user settings. KV is acceptable for read-heavy config where eventual consistency is fine. |
+| Notebooks | `data/user/workspace/notebook/*` | D1 + [R2](https://developers.cloudflare.com/r2/) | Store notebook metadata/indexes in D1 and larger document bodies or attachments in R2. |
+| Books | `data/user/workspace/book/*` | D1 + R2 or Durable Objects SQLite + R2 | Store manifests, progress, spine, and page records in D1/DO SQLite; store assets and exports in R2. |
+| Knowledge-base source files | `data/knowledge_bases/*/documents`, images, uploads | R2 | Store original PDFs, Office docs, extracted images, and generated artifacts as objects. |
+| Knowledge-base vector/search indexes | `data/knowledge_bases/*/llamaindex_storage` or `rag_storage` | [Vectorize](https://developers.cloudflare.com/vectorize/) + R2/D1 metadata | Store embeddings in Vectorize; keep source text/object keys in R2 and metadata in D1. If keeping LlamaIndex locally, hydrate it from R2 into a temporary cache on container start. |
+| Existing external SQL option | Local SQLite today | [Hyperdrive](https://developers.cloudflare.com/hyperdrive/) | If DeepTutor moves to Postgres/MySQL instead of D1, use Hyperdrive to pool and accelerate database access from Cloudflare. |
+| Reindex/import jobs | Local process state | [Queues](https://developers.cloudflare.com/queues/) | Use Queues for durable background ingestion, reindexing, and media-processing work that should survive container restarts. |
+
+Do not increase `max_instances` until the write paths above are moved off the
+container filesystem or made safe to hydrate from R2/D1/Vectorize.
