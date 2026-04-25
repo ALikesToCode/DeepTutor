@@ -9,7 +9,7 @@
   "vars": {
     "BACKEND_PORT": "8001",
     "FRONTEND_PORT": "3782",
-    "DEEPTUTOR_AUTH_ENABLED": "",
+    "DEEPTUTOR_AUTH_ENABLED": "true",
     "DEEPTUTOR_AUTH_MAX_AGE_SECONDS": "604800",
     "NEXT_PUBLIC_API_BASE_EXTERNAL": "same-origin",
     "LLM_BINDING": "navy",
@@ -25,8 +25,8 @@
     "NAVY_API_BASE": "https://api.navy/v1",
     "NAVY_IMAGE_MODEL": "gpt-image-2",
     "NAVY_VIDEO_MODEL": "grok-imagine-video",
-    "SEARCH_PROVIDER": "",
-    "SEARCH_BASE_URL": "",
+    "SEARCH_PROVIDER": "tavily",
+    "SEARCH_BASE_URL": "https://api.tavily.com/search",
     "SEARCH_PROXY": "",
     "DISABLE_SSL_VERIFY": "false",
     "ENVIRONMENT": "production"
