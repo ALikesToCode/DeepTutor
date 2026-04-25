@@ -13,6 +13,20 @@ async def _noop_refresh(**_kwargs):
     return None
 
 
+def test_unified_websocket_replies_to_heartbeat_ping() -> None:
+    FastAPI = pytest.importorskip("fastapi").FastAPI
+    TestClient = pytest.importorskip("fastapi.testclient").TestClient
+    from deeptutor.api.routers import unified_ws
+
+    app = FastAPI()
+    app.include_router(unified_ws.router, prefix="/api/v1")
+
+    with TestClient(app) as client:
+        with client.websocket_connect("/api/v1/ws") as websocket:
+            websocket.send_json({"type": "ping"})
+            assert websocket.receive_json() == {"type": "pong"}
+
+
 @pytest.mark.asyncio
 async def test_turn_runtime_replays_events_and_materializes_messages(
     monkeypatch: pytest.MonkeyPatch,

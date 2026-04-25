@@ -93,6 +93,10 @@ async def unified_websocket(ws: WebSocket) -> None:
 
             msg_type = msg.get("type")
 
+            if msg_type == "ping":
+                await safe_send({"type": "pong"})
+                continue
+
             if msg_type in {"message", "start_turn"}:
                 from deeptutor.services.session import get_turn_runtime_manager
 

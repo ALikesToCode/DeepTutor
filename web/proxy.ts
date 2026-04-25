@@ -13,6 +13,7 @@ const PUBLIC_PATHS = new Set([
   "/apple-touch-icon.png",
   "/logo.png",
   "/logo-ver2.png",
+  "/api/version",
 ]);
 
 function isPublicRequest(pathname: string): boolean {

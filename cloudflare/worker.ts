@@ -165,6 +165,10 @@ function isBackendRequest(request: Request): boolean {
   return url.pathname === "/api" || url.pathname.startsWith("/api/");
 }
 
+function isWebSocketUpgrade(request: Request): boolean {
+  return request.headers.get("upgrade")?.toLowerCase() === "websocket";
+}
+
 function isR2StateSyncEnabled(env: Env): boolean {
   if (!env.DEEPTUTOR_FILES || !env.DEEPTUTOR_R2_SYNC_TOKEN) return false;
 
@@ -402,6 +406,7 @@ function isPublicRequest(request: Request): boolean {
     url.pathname === "/apple-touch-icon.png" ||
     url.pathname === "/logo.png" ||
     url.pathname === "/logo-ver2.png" ||
+    url.pathname === "/api/version" ||
     url.pathname.startsWith("/api/auth/") ||
     url.pathname.startsWith("/_next/")
   );
@@ -490,6 +495,9 @@ export default {
     const container = getContainer(env.DEEPTUTOR_CONTAINER);
 
     if (isBackendRequest(request)) {
+      if (isWebSocketUpgrade(request)) {
+        return container.fetch(switchPort(request, BACKEND_PORT));
+      }
       const outputResponse = await fetchOutputFromR2OrContainer(request, env, container, ctx);
       if (outputResponse) {
         return outputResponse;

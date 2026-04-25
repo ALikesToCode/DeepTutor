@@ -171,7 +171,9 @@ export class UnifiedWSClient {
     this.ws.onmessage = (ev) => {
       this.lastReceivedAt = Date.now();
       try {
-        const event: StreamEvent = JSON.parse(ev.data);
+        const parsed = JSON.parse(ev.data) as { type?: string };
+        if (parsed.type === "pong") return;
+        const event = parsed as StreamEvent;
         if (event.turn_id) this.activeTurnId = event.turn_id;
         if (event.seq != null) this.lastSeq = Math.max(this.lastSeq, event.seq);
         this.onEvent(event);
