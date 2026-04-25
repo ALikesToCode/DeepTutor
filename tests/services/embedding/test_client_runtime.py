@@ -8,6 +8,7 @@ import pytest
 
 from deeptutor.services.embedding.client import EmbeddingClient, _resolve_adapter_class
 from deeptutor.services.embedding.config import EmbeddingConfig
+from deeptutor.services.embedding.vector_sanitizer import EmbeddingVectorError
 
 
 class _FakeAdapter:
@@ -29,6 +30,18 @@ class _FakeAdapter:
                 ],
             },
         )()
+
+
+class _NullCoordinateAdapter(_FakeAdapter):
+    async def embed(self, request):
+        self.calls.append(request)
+        return type("Resp", (), {"embeddings": [[0.1, None, 0.2] for _ in request.texts]})()
+
+
+class _EmptyVectorAdapter(_FakeAdapter):
+    async def embed(self, request):
+        self.calls.append(request)
+        return type("Resp", (), {"embeddings": [[] for _ in request.texts]})()
 
 
 def _build_config(
@@ -63,6 +76,33 @@ async def test_embedding_client_batches_requests(monkeypatch) -> None:
     assert len(adapter.calls[0].texts) == 2
     assert len(adapter.calls[1].texts) == 1
     assert adapter.config["dimensions"] == 8
+
+
+@pytest.mark.asyncio
+async def test_embedding_client_repairs_null_coordinates(monkeypatch) -> None:
+    _FakeAdapter.instances = []
+    monkeypatch.setattr(
+        "deeptutor.services.embedding.client._resolve_adapter_class",
+        lambda _b: _NullCoordinateAdapter,
+    )
+    client = EmbeddingClient(_build_config("openai"))
+
+    vectors = await client.embed(["a"])
+
+    assert vectors == [[0.1, 0.0, 0.2]]
+
+
+@pytest.mark.asyncio
+async def test_embedding_client_rejects_empty_vectors(monkeypatch) -> None:
+    _FakeAdapter.instances = []
+    monkeypatch.setattr(
+        "deeptutor.services.embedding.client._resolve_adapter_class",
+        lambda _b: _EmptyVectorAdapter,
+    )
+    client = EmbeddingClient(_build_config("openai"))
+
+    with pytest.raises(EmbeddingVectorError, match="empty"):
+        await client.embed(["a"])
 
 
 def test_resolve_adapter_class_supports_canonical_providers() -> None:

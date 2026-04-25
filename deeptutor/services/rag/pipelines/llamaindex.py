@@ -21,6 +21,7 @@ from llama_index.core.bridge.pydantic import PrivateAttr
 
 from deeptutor.logging import get_logger
 from deeptutor.services.embedding import get_embedding_client, get_embedding_config
+from deeptutor.services.embedding.vector_sanitizer import repair_persisted_vector_stores
 from deeptutor.services.rag.file_routing import FileTypeRouter
 
 # Default knowledge base directory
@@ -190,6 +191,16 @@ class LlamaIndexPipeline:
                 f"Cannot reach embedding API. Please check your embedding configuration. Error: {e}"
             ) from e
 
+    def _repair_vector_storage(self, storage_dir: Path) -> None:
+        """Repair coordinate-level persisted vector defects before LlamaIndex loads them."""
+        report = repair_persisted_vector_stores(storage_dir)
+        if report["coordinates"]:
+            self.logger.warning(
+                f"Repaired {report['coordinates']} malformed embedding coordinate(s) "
+                f"across {report['vectors']} vector(s) in {report['files']} "
+                f"persisted vector store file(s)."
+            )
+
     async def initialize(self, kb_name: str, file_paths: List[str], **kwargs) -> bool:
         """
         Initialize KB using real LlamaIndex components.
@@ -279,6 +290,7 @@ class LlamaIndexPipeline:
 
             # Persist index
             index.storage_context.persist(persist_dir=str(storage_dir))
+            self._repair_vector_storage(storage_dir)
             self.logger.info(f"Index persisted to {storage_dir}")
 
             self.logger.info(f"KB '{kb_name}' initialized successfully with LlamaIndex")
@@ -369,6 +381,7 @@ class LlamaIndexPipeline:
             loop = asyncio.get_event_loop()
 
             def load_and_retrieve():
+                self._repair_vector_storage(storage_dir)
                 storage_context = StorageContext.from_defaults(persist_dir=str(storage_dir))
                 index = load_index_from_storage(storage_context)
                 top_k = kwargs.get("top_k", 5)
@@ -503,6 +516,7 @@ class LlamaIndexPipeline:
                 self.logger.info(f"Loading existing index from {storage_dir}...")
 
                 def load_and_insert():
+                    self._repair_vector_storage(storage_dir)
                     storage_context = StorageContext.from_defaults(persist_dir=str(storage_dir))
                     index = load_index_from_storage(storage_context)
 
@@ -514,6 +528,7 @@ class LlamaIndexPipeline:
                         index.insert(doc)
 
                     index.storage_context.persist(persist_dir=str(storage_dir))
+                    self._repair_vector_storage(storage_dir)
                     return len(documents)
 
                 num_added = await loop.run_in_executor(None, load_and_insert)
@@ -525,6 +540,7 @@ class LlamaIndexPipeline:
                 def create_index():
                     index = VectorStoreIndex.from_documents(documents, show_progress=True)
                     index.storage_context.persist(persist_dir=str(storage_dir))
+                    self._repair_vector_storage(storage_dir)
                     return len(documents)
 
                 num_added = await loop.run_in_executor(None, create_index)

@@ -14,6 +14,7 @@ from .adapters.jina import JinaEmbeddingAdapter
 from .adapters.ollama import OllamaEmbeddingAdapter
 from .adapters.openai_compatible import OpenAICompatibleEmbeddingAdapter
 from .config import EmbeddingConfig, get_embedding_config
+from .vector_sanitizer import sanitize_embedding_batch
 
 _ADAPTER_MAP: dict[str, type[BaseEmbeddingAdapter]] = {
     "gemini": GeminiEmbeddingAdapter,
@@ -84,7 +85,19 @@ class EmbeddingClient:
                     dimensions=self.config.dim,
                 )
                 response = await self.adapter.embed(request)
-                all_embeddings.extend(response.embeddings)
+                expected_dim = len(all_embeddings[0]) if all_embeddings else None
+                batch_embeddings, repaired = sanitize_embedding_batch(
+                    response.embeddings,
+                    label=f"{self.config.binding}:{self.config.model}",
+                    expected_count=len(batch),
+                    expected_dim=expected_dim,
+                )
+                if repaired:
+                    self.logger.warning(
+                        f"Repaired {repaired} malformed embedding coordinate(s) from "
+                        f"{self.config.binding} (model={self.config.model})."
+                    )
+                all_embeddings.extend(batch_embeddings)
 
                 # Report progress after each batch
                 if progress_callback:
