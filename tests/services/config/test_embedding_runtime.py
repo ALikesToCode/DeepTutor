@@ -216,6 +216,34 @@ def test_embedding_navy_explicit_binding_uses_gateway_defaults(tmp_path: Path) -
     assert resolved.send_dimensions is False
 
 
+def test_embedding_navy_provider_env_key_fallback(tmp_path: Path) -> None:
+    catalog = _build_catalog(
+        embedding_profile={
+            "id": "embedding-p",
+            "name": "Embedding",
+            "binding": "navy",
+            "base_url": "",
+            "api_key": "",
+            "api_version": "",
+            "extra_headers": {},
+            "models": [
+                {
+                    "id": "embedding-m",
+                    "name": "m",
+                    "model": "gemini-embedding-2-preview",
+                    "dimension": "3072",
+                }
+            ],
+        }
+    )
+    env = _env(tmp_path, ["NAVY_API_KEY=sk-navy-env-key"])
+    resolved = resolve_embedding_runtime_config(catalog=catalog, env_store=env)
+    assert resolved.provider_name == "navy"
+    assert resolved.api_key == "sk-navy-env-key"
+    assert resolved.effective_url == "https://api.navy/v1"
+    assert resolved.send_dimensions is False
+
+
 def test_embedding_navy_detected_from_openai_binding_host(tmp_path: Path) -> None:
     catalog = _build_catalog(
         embedding_profile={

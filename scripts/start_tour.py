@@ -367,7 +367,7 @@ LLM_MODEL_SUGGESTIONS = {
 EMBEDDING_MODEL_SUGGESTIONS = {
     "gemini": "gemini-embedding-2",
     "openai": "text-embedding-3-large",
-    "navy": "text-embedding-3-large",
+    "navy": "gemini-embedding-2-preview",
     "cohere": "embed-v4.0",
     "jina": "jina-embeddings-v3",
     "ollama": "nomic-embed-text",
@@ -927,7 +927,10 @@ def _configure_llm() -> dict[str, str]:
         _t("base_url"),
         _default_base_url(binding, current_binding, summary.llm["host"]),
     )
-    api_key = _prompt_secret(_t("api_key"), summary.llm["api_key"])
+    default_api_key = summary.llm["api_key"]
+    if binding == "navy":
+        default_api_key = default_api_key or get_env_store().get("NAVY_API_KEY", "")
+    api_key = _prompt_secret(_t("api_key"), default_api_key)
     model_id = text_input(
         _t("model_id"),
         _default_llm_model(binding, current_binding, summary.llm["model"]),
@@ -939,13 +942,16 @@ def _configure_llm() -> dict[str, str]:
         log_info(dim(_t("api_version_hint_generic")))
     api_version = text_input(_t("api_version"), api_version_default)
     print()
-    return {
+    values = {
         "LLM_BINDING": binding,
         "LLM_HOST": base_url,
-        "LLM_API_KEY": api_key,
+        "LLM_API_KEY": "" if binding == "navy" else api_key,
         "LLM_MODEL": model_id,
         "LLM_API_VERSION": api_version,
     }
+    if binding == "navy" and api_key:
+        values["NAVY_API_KEY"] = api_key
+    return values
 
 
 
@@ -958,7 +964,10 @@ def _configure_embedding() -> dict[str, str]:
         _t("base_url"),
         _default_base_url(binding, current_binding, summary.embedding["host"]),
     )
-    api_key = _prompt_secret(_t("api_key"), summary.embedding["api_key"])
+    default_api_key = summary.embedding["api_key"]
+    if binding == "navy":
+        default_api_key = default_api_key or get_env_store().get("NAVY_API_KEY", "")
+    api_key = _prompt_secret(_t("api_key"), default_api_key)
     model_id = text_input(
         _t("model_id"),
         _default_embedding_model(binding, current_binding, summary.embedding["model"]),
@@ -975,15 +984,18 @@ def _configure_embedding() -> dict[str, str]:
         log_info(dim(_t("api_version_hint_generic")))
     api_version = text_input(_t("api_version"), api_version_default)
     print()
-    return {
+    values = {
         "EMBEDDING_BINDING": binding,
         "EMBEDDING_HOST": base_url,
-        "EMBEDDING_API_KEY": api_key,
+        "EMBEDDING_API_KEY": "" if binding == "navy" else api_key,
         "EMBEDDING_MODEL": model_id,
         "EMBEDDING_DIMENSION": dimension,
         "EMBEDDING_SEND_DIMENSIONS": "" if send_dimensions == "auto" else send_dimensions,
         "EMBEDDING_API_VERSION": api_version,
     }
+    if binding == "navy" and api_key:
+        values["NAVY_API_KEY"] = api_key
+    return values
 
 
 
@@ -1056,6 +1068,8 @@ def _print_review(values: dict[str, str]) -> None:
     log_info(f"{_t('summary_search')}  {bold(search_summary)}")
     log_info(f"LLM key  {dim(_secret_mask(values['LLM_API_KEY']))}")
     log_info(f"Emb key  {dim(_secret_mask(values['EMBEDDING_API_KEY']))}")
+    if values.get("NAVY_API_KEY"):
+        log_info(f"Navy key  {dim(_secret_mask(values['NAVY_API_KEY']))}")
     if values["SEARCH_PROVIDER"]:
         log_info(f"Search key  {dim(_secret_mask(values['SEARCH_API_KEY']))}")
     print()

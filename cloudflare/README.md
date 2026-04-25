@@ -13,39 +13,36 @@ Containers, not as a plain Worker-only app.
 
 ## Configure Secrets
 
-Set secrets in Cloudflare instead of committing them to `wrangler.jsonc`:
+Set the NavyAI key once in Cloudflare instead of committing it to
+`wrangler.jsonc`:
 
 ```bash
-wrangler secret put LLM_API_KEY
-wrangler secret put EMBEDDING_API_KEY
+wrangler secret put NAVY_API_KEY
 ```
 
-Optional provider/search secrets can be added the same way:
+Optional login/search/provider override secrets can be added the same way:
 
 ```bash
 wrangler secret put DEEPTUTOR_AUTH_PASSWORD
+wrangler secret put LLM_API_KEY
+wrangler secret put EMBEDDING_API_KEY
 wrangler secret put SEARCH_API_KEY
 wrangler secret put BRAVE_API_KEY
 wrangler secret put TAVILY_API_KEY
 wrangler secret put GEMINI_API_KEY
 wrangler secret put ANTHROPIC_API_KEY
-wrangler secret put NAVY_API_KEY
 ```
 
 Non-secret defaults live in `wrangler.jsonc`. Change `LLM_MODEL`, `LLM_HOST`,
 embedding settings, Navy media model defaults, or search provider there when
 needed.
 
-Gemini embeddings use Google's native batch embedding endpoint by default:
-`EMBEDDING_BINDING=gemini`, `EMBEDDING_MODEL=gemini-embedding-2`, and
-`EMBEDDING_HOST=https://generativelanguage.googleapis.com/v1beta`. Set either
-`EMBEDDING_API_KEY` or `GEMINI_API_KEY` as a Worker secret.
-
-For NavyAI, set `LLM_BINDING=navy`, `LLM_HOST=https://api.navy/v1`, and either
-`LLM_API_KEY` or `NAVY_API_KEY`. Embeddings use the same host with
-`EMBEDDING_BINDING=navy` and `EMBEDDING_SEND_DIMENSIONS=false`. The
-`media_generation` tool uses `NAVY_API_KEY`, `NAVY_API_BASE`, `NAVY_IMAGE_MODEL`,
-and `NAVY_VIDEO_MODEL` for image/video assets.
+NavyAI is the default all-in-one provider. `NAVY_API_KEY` is reused for chat
+(`LLM_BINDING=navy`), embeddings (`EMBEDDING_BINDING=navy`), and the
+`media_generation` tool. The default embedding model is
+`gemini-embedding-2-preview`, which Navy exposes on `/v1/embeddings`, and
+`EMBEDDING_SEND_DIMENSIONS=false` keeps the request compatible with Navy's
+OpenAI-compatible endpoint.
 
 ## Deploy
 

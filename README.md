@@ -169,24 +169,29 @@ cp .env.example .env
 Edit `.env` and fill in at least the required fields:
 
 ```dotenv
-# LLM (Required)
-LLM_BINDING=openai
-LLM_MODEL=gpt-4o-mini
-LLM_API_KEY=sk-xxx
-LLM_HOST=https://api.openai.com/v1
+# One key for Navy chat, embeddings, image/video, and other services.
+NAVY_API_KEY=sk-navy-xxx
+NAVY_API_BASE=https://api.navy/v1
+
+# LLM
+LLM_BINDING=navy
+LLM_MODEL=gpt-5.4-mini
+LLM_API_KEY=
+LLM_HOST=https://api.navy/v1
 
 # Embedding (Required for Knowledge Base)
-EMBEDDING_BINDING=openai
-EMBEDDING_MODEL=text-embedding-3-large
-EMBEDDING_API_KEY=sk-xxx
-EMBEDDING_HOST=https://api.openai.com/v1
+EMBEDDING_BINDING=navy
+EMBEDDING_MODEL=gemini-embedding-2-preview
+EMBEDDING_API_KEY=
+EMBEDDING_HOST=https://api.navy/v1
 EMBEDDING_DIMENSION=3072
+EMBEDDING_SEND_DIMENSIONS=false
 ```
 
-For NavyAI, use `LLM_BINDING=navy` / `EMBEDDING_BINDING=navy`, a
-`sk-navy-...` key, and `https://api.navy/v1` as the host. Set
-`EMBEDDING_SEND_DIMENSIONS=false` unless you have confirmed your NavyAI model
-accepts the optional `dimensions` request parameter.
+With the NavyAI defaults, leave `LLM_API_KEY` and `EMBEDDING_API_KEY` blank.
+DeepTutor reuses `NAVY_API_KEY` for chat, embeddings, and media generation.
+Navy exposes `gemini-embedding-2-preview` on its OpenAI-compatible
+`/v1/embeddings` endpoint, so `EMBEDDING_SEND_DIMENSIONS=false` is the default.
 
 <details>
 <summary><b>Supported LLM Providers</b></summary>
@@ -397,17 +402,17 @@ These directories survive `docker compose down` and are reused on the next `dock
 
 | Variable | Required | Description |
 |:---|:---:|:---|
-| `LLM_BINDING` | **Yes** | LLM provider (`openai`, `anthropic`, etc.) |
-| `LLM_MODEL` | **Yes** | Model name (e.g. `gpt-4o`) |
-| `LLM_API_KEY` | **Yes** | Your LLM API key |
+| `NAVY_API_KEY` | **Yes** | Default all-in-one NavyAI key for chat, embeddings, and media generation |
+| `NAVY_API_BASE` | No | NavyAI base URL (default `https://api.navy/v1`) |
+| `LLM_BINDING` | **Yes** | LLM provider (`navy`, `openai`, `anthropic`, etc.) |
+| `LLM_MODEL` | **Yes** | Model name (default `gpt-5.4-mini` for NavyAI) |
+| `LLM_API_KEY` | No | Optional provider-specific LLM key; blank uses `NAVY_API_KEY` for NavyAI |
 | `LLM_HOST` | **Yes** | API endpoint URL |
 | `EMBEDDING_BINDING` | **Yes** | Embedding provider |
-| `EMBEDDING_MODEL` | **Yes** | Embedding model name |
-| `EMBEDDING_API_KEY` | **Yes** | Embedding API key |
+| `EMBEDDING_MODEL` | **Yes** | Embedding model name (default `gemini-embedding-2-preview` for NavyAI) |
+| `EMBEDDING_API_KEY` | No | Optional provider-specific embedding key; blank uses `NAVY_API_KEY` for NavyAI |
 | `EMBEDDING_HOST` | **Yes** | Embedding endpoint |
 | `EMBEDDING_DIMENSION` | **Yes** | Vector dimension |
-| `NAVY_API_KEY` | No | NavyAI key for `media_generation` image/video assets |
-| `NAVY_API_BASE` | No | NavyAI base URL (default `https://api.navy/v1`) |
 | `NAVY_IMAGE_MODEL` | No | Default image model for media generation (`gpt-image-2`) |
 | `NAVY_VIDEO_MODEL` | No | Default video model for media generation (`grok-imagine-video`) |
 | `SEARCH_PROVIDER` | No | Search provider (`tavily`, `jina`, `serper`, `perplexity`, etc.) |

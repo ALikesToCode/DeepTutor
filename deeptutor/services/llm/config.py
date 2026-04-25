@@ -70,6 +70,13 @@ def _set_openai_env_vars(api_key: str | None, base_url: str | None, *, source: s
         logger.debug("Set OPENAI_BASE_URL env var to %s (%s)", clean_url, source)
 
 
+def _provider_env_api_key(binding: str | None) -> str:
+    spec = find_by_name(binding)
+    if not spec or not spec.env_key:
+        return ""
+    return get_env_store().get(spec.env_key, "").strip()
+
+
 def _setup_openai_env_vars_early() -> None:
     """
     Set OPENAI_* environment variables early for OpenAI-compatible SDKs.
@@ -80,7 +87,7 @@ def _setup_openai_env_vars_early() -> None:
     """
     env_store = get_env_store()
     binding = env_store.get("LLM_BINDING", "openai")
-    api_key = env_store.get("LLM_API_KEY", "")
+    api_key = env_store.get("LLM_API_KEY", "") or _provider_env_api_key(binding)
     base_url = env_store.get("LLM_HOST", "")
 
     if _is_openai_compatible_binding(binding):
