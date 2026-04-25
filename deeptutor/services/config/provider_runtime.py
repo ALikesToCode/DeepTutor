@@ -43,8 +43,8 @@ SEARCH_ENV_FALLBACK = {
 LLM_LOCALHOST_PROVIDERS = ("ollama", "vllm")
 
 EMBEDDING_PROVIDER_ALIASES = {
-    "google": "openai",
-    "gemini": "openai",
+    "google": "gemini",
+    "google_genai": "gemini",
     "huggingface": "custom",
     "lm_studio": "vllm",
     "llama_cpp": "vllm",
@@ -73,6 +73,17 @@ class EmbeddingProviderSpec:
 
 
 EMBEDDING_PROVIDERS: dict[str, EmbeddingProviderSpec] = {
+    "gemini": EmbeddingProviderSpec(
+        label="Gemini",
+        adapter="gemini",
+        default_api_base="https://generativelanguage.googleapis.com/v1beta",
+        keywords=("gemini", "gemini-embedding"),
+        is_local=False,
+        api_key_envs=("GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY", "GOOGLE_API_KEY"),
+        default_model="gemini-embedding-2",
+        default_dim=3072,
+        detect_by_base_keyword="generativelanguage.googleapis.com",
+    ),
     "openai": EmbeddingProviderSpec(
         label="OpenAI",
         default_api_base="https://api.openai.com/v1",
@@ -499,8 +510,6 @@ def _detect_embedding_gateway(
 ) -> str | None:
     base_lower = (api_base or "").lower()
     for provider_name, spec in EMBEDDING_PROVIDERS.items():
-        if spec.mode not in {"gateway", "local"}:
-            continue
         if spec.detect_by_key_prefix and api_key.startswith(spec.detect_by_key_prefix):
             return provider_name
         if spec.detect_by_base_keyword and spec.detect_by_base_keyword in base_lower:

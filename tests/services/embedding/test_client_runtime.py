@@ -66,6 +66,7 @@ async def test_embedding_client_batches_requests(monkeypatch) -> None:
 
 
 def test_resolve_adapter_class_supports_canonical_providers() -> None:
+    assert _resolve_adapter_class("gemini").__name__ == "GeminiEmbeddingAdapter"
     assert _resolve_adapter_class("openai").__name__ == "OpenAICompatibleEmbeddingAdapter"
     assert _resolve_adapter_class("custom").__name__ == "OpenAICompatibleEmbeddingAdapter"
     assert _resolve_adapter_class("azure_openai").__name__ == "OpenAICompatibleEmbeddingAdapter"

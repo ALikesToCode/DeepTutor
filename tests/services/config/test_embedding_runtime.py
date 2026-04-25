@@ -53,6 +53,9 @@ def _env(tmp_path: Path, lines: list[str]) -> EnvStore:
         "EMBEDDING_DIMENSION=",
         "EMBEDDING_API_VERSION=",
         "OPENAI_API_KEY=",
+        "GEMINI_API_KEY=",
+        "GOOGLE_GENERATIVE_AI_API_KEY=",
+        "GOOGLE_API_KEY=",
         "NAVY_API_KEY=",
         "AZURE_OPENAI_API_KEY=",
         "AZURE_API_KEY=",
@@ -104,7 +107,7 @@ def test_embedding_explicit_binding_and_headers(tmp_path: Path) -> None:
     assert resolved.dimension == 1024
 
 
-def test_embedding_alias_canonicalization_google_to_openai(tmp_path: Path) -> None:
+def test_embedding_alias_canonicalization_google_to_gemini(tmp_path: Path) -> None:
     catalog = _build_catalog(
         embedding_profile={
             "id": "embedding-p",
@@ -114,12 +117,15 @@ def test_embedding_alias_canonicalization_google_to_openai(tmp_path: Path) -> No
             "api_key": "k",
             "api_version": "",
             "extra_headers": {},
-            "models": [{"id": "embedding-m", "name": "m", "model": "text-embedding-3-small"}],
+            "models": [
+                {"id": "embedding-m", "name": "m", "model": "gemini-embedding-2"}
+            ],
         }
     )
     resolved = resolve_embedding_runtime_config(catalog=catalog, env_store=_env(tmp_path, []))
-    assert resolved.provider_name == "openai"
-    assert resolved.binding == "openai"
+    assert resolved.provider_name == "gemini"
+    assert resolved.binding == "gemini"
+    assert resolved.effective_url == "https://generativelanguage.googleapis.com/v1beta"
 
 
 def test_embedding_local_fallback_from_base_url(tmp_path: Path) -> None:
@@ -157,6 +163,29 @@ def test_embedding_openai_default_base_injected(tmp_path: Path) -> None:
     resolved = resolve_embedding_runtime_config(catalog=catalog, env_store=_env(tmp_path, []))
     assert resolved.provider_name == "openai"
     assert resolved.effective_url == "https://api.openai.com/v1"
+
+
+def test_embedding_gemini_env_key_fallback(tmp_path: Path) -> None:
+    catalog = _build_catalog(
+        embedding_profile={
+            "id": "embedding-p",
+            "name": "Embedding",
+            "binding": "gemini",
+            "base_url": "",
+            "api_key": "",
+            "api_version": "",
+            "extra_headers": {},
+            "models": [
+                {"id": "embedding-m", "name": "m", "model": "gemini-embedding-2"}
+            ],
+        }
+    )
+    env = _env(tmp_path, ["GEMINI_API_KEY=gemini-test-key"])
+    resolved = resolve_embedding_runtime_config(catalog=catalog, env_store=env)
+    assert resolved.provider_name == "gemini"
+    assert resolved.api_key == "gemini-test-key"
+    assert resolved.effective_url == "https://generativelanguage.googleapis.com/v1beta"
+    assert resolved.send_dimensions is None
 
 
 def test_embedding_navy_explicit_binding_uses_gateway_defaults(tmp_path: Path) -> None:

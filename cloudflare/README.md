@@ -23,6 +23,7 @@ wrangler secret put EMBEDDING_API_KEY
 Optional provider/search secrets can be added the same way:
 
 ```bash
+wrangler secret put DEEPTUTOR_AUTH_PASSWORD
 wrangler secret put SEARCH_API_KEY
 wrangler secret put BRAVE_API_KEY
 wrangler secret put TAVILY_API_KEY
@@ -34,6 +35,11 @@ wrangler secret put NAVY_API_KEY
 Non-secret defaults live in `wrangler.jsonc`. Change `LLM_MODEL`, `LLM_HOST`,
 embedding settings, Navy media model defaults, or search provider there when
 needed.
+
+Gemini embeddings use Google's native batch embedding endpoint by default:
+`EMBEDDING_BINDING=gemini`, `EMBEDDING_MODEL=gemini-embedding-2`, and
+`EMBEDDING_HOST=https://generativelanguage.googleapis.com/v1beta`. Set either
+`EMBEDDING_API_KEY` or `GEMINI_API_KEY` as a Worker secret.
 
 For NavyAI, set `LLM_BINDING=navy`, `LLM_HOST=https://api.navy/v1`, and either
 `LLM_API_KEY` or `NAVY_API_KEY`. Embeddings use the same host with

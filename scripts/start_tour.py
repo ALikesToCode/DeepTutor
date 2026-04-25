@@ -365,6 +365,7 @@ LLM_MODEL_SUGGESTIONS = {
 }
 
 EMBEDDING_MODEL_SUGGESTIONS = {
+    "gemini": "gemini-embedding-2",
     "openai": "text-embedding-3-large",
     "navy": "text-embedding-3-large",
     "cohere": "embed-v4.0",
