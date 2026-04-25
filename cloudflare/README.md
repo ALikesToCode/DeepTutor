@@ -62,6 +62,20 @@ The first deploy builds the Docker image from `Dockerfile`, pushes it to
 Cloudflare's registry, and then provisions the Container-backed Worker. The
 first container start can take several minutes.
 
+## R2 File Storage
+
+Generated public artifacts are served through `/api/outputs/*`. In Cloudflare,
+the Worker binds the `deeptutor-files` R2 bucket as `DEEPTUTOR_FILES` and checks
+R2 before waking the application container. On a cache miss, it streams the file
+from the container and writes the successful response back to R2 under the
+`outputs/` prefix.
+
+Create the bucket before deploying to a new account:
+
+```bash
+wrangler r2 bucket create deeptutor-files
+```
+
 ## Check Status
 
 ```bash
@@ -80,7 +94,7 @@ App traffic goes through one container instance:
 ## Persistence Note
 
 This setup intentionally uses `max_instances: 1` because DeepTutor currently
-stores runtime data under local `data/` paths. Cloudflare Container local disk is
-not a shared application database. For durable multi-instance production use,
-move knowledge bases, user workspace data, and generated outputs to a managed
-store such as R2/D1/Postgres before increasing `max_instances`.
+stores runtime state under local `data/` paths. The R2 binding covers generated
+public file artifacts, but SQLite/session state, settings, notebooks, books, and
+knowledge-base indexes still require a single container instance until those
+stores are moved to managed services such as D1/Postgres/R2-aware adapters.

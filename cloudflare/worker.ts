@@ -3,6 +3,7 @@ import { env as cloudflareEnv } from "cloudflare:workers";
 
 interface Env {
   DEEPTUTOR_CONTAINER: DurableObjectNamespace<DeepTutorContainer>;
+  DEEPTUTOR_FILES?: R2Bucket;
 }
 
 const stringEnv = cloudflareEnv as unknown as Record<string, string | undefined>;
@@ -29,6 +30,8 @@ const DEFAULT_ENV = {
   SEARCH_PROVIDER: "",
   SEARCH_BASE_URL: "",
   SEARCH_PROXY: "",
+  DEEPTUTOR_R2_OUTPUTS_ENABLED: "",
+  DEEPTUTOR_R2_OUTPUTS_PREFIX: "outputs/",
   DISABLE_SSL_VERIFY: "false",
   ENVIRONMENT: "production",
 } as const;
@@ -152,6 +155,165 @@ function isBackendRequest(request: Request): boolean {
   return url.pathname === "/api" || url.pathname.startsWith("/api/");
 }
 
+function isR2OutputsEnabled(env: Env): boolean {
+  if (!env.DEEPTUTOR_FILES) return false;
+
+  const flag = envValue("DEEPTUTOR_R2_OUTPUTS_ENABLED").trim().toLowerCase();
+  if (["0", "false", "no", "off"].includes(flag)) {
+    return false;
+  }
+
+  return true;
+}
+
+function isAllowedOutputPath(parts: string[]): boolean {
+  if (parts.slice(0, 3).join("/") === "workspace/co-writer/audio") {
+    return true;
+  }
+
+  if (
+    parts.length >= 5 &&
+    parts.slice(0, 3).join("/") === "workspace/chat/deep_solve" &&
+    parts.slice(4).includes("artifacts")
+  ) {
+    return true;
+  }
+
+  if (
+    parts.length >= 5 &&
+    parts.slice(0, 3).join("/") === "workspace/chat/math_animator" &&
+    parts.slice(4).includes("artifacts")
+  ) {
+    return true;
+  }
+
+  if (
+    parts.length >= 5 &&
+    parts.slice(0, 2).join("/") === "workspace/chat" &&
+    parts.slice(3).includes("code_runs")
+  ) {
+    return true;
+  }
+
+  if (
+    parts.length >= 4 &&
+    parts.slice(0, 3).join("/") === "workspace/chat/_detached_code_execution"
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function outputR2Key(pathname: string): string | null {
+  const prefix = "/api/outputs/";
+  if (!pathname.startsWith(prefix)) {
+    return null;
+  }
+
+  const rawPath = pathname.slice(prefix.length);
+  if (!rawPath) {
+    return null;
+  }
+
+  let decodedPath: string;
+  try {
+    decodedPath = decodeURIComponent(rawPath);
+  } catch {
+    return null;
+  }
+
+  if (decodedPath.includes("\\") || decodedPath.startsWith("/")) {
+    return null;
+  }
+
+  const parts = decodedPath.split("/");
+  if (parts.some((part) => part === "" || part === "." || part === "..")) {
+    return null;
+  }
+  if (!isAllowedOutputPath(parts)) {
+    return null;
+  }
+
+  const storagePrefix = envValue(
+    "DEEPTUTOR_R2_OUTPUTS_PREFIX",
+    DEFAULT_ENV.DEEPTUTOR_R2_OUTPUTS_PREFIX,
+  )
+    .replace(/^\/+/, "")
+    .replace(/\/?$/, "/");
+
+  return `${storagePrefix}${parts.join("/")}`;
+}
+
+function responseFromR2Object(object: R2ObjectBody, method: string): Response {
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  headers.set("etag", object.httpEtag);
+  if (!headers.has("cache-control")) {
+    headers.set("cache-control", "private, max-age=3600");
+  }
+
+  return new Response(method === "HEAD" ? null : object.body, {
+    status: 200,
+    headers,
+  });
+}
+
+function shouldCacheOutputResponse(response: Response): boolean {
+  if (!response.ok || !response.body) {
+    return false;
+  }
+
+  const contentType = response.headers.get("content-type") ?? "";
+  return !contentType.includes("text/html");
+}
+
+async function cacheOutputResponse(bucket: R2Bucket, key: string, response: Response): Promise<void> {
+  if (!shouldCacheOutputResponse(response)) {
+    return;
+  }
+
+  const metadata: R2HTTPMetadata = {};
+  const contentType = response.headers.get("content-type");
+  const cacheControl = response.headers.get("cache-control");
+  const contentDisposition = response.headers.get("content-disposition");
+
+  if (contentType) metadata.contentType = contentType;
+  metadata.cacheControl = cacheControl || "private, max-age=3600";
+  if (contentDisposition) metadata.contentDisposition = contentDisposition;
+
+  await bucket.put(key, response.body, { httpMetadata: metadata });
+}
+
+async function fetchOutputFromR2OrContainer(
+  request: Request,
+  env: Env,
+  container: DurableObjectStub<DeepTutorContainer>,
+  ctx: ExecutionContext,
+): Promise<Response | null> {
+  if (!isR2OutputsEnabled(env)) {
+    return null;
+  }
+
+  const url = new URL(request.url);
+  const key = outputR2Key(url.pathname);
+  const bucket = env.DEEPTUTOR_FILES;
+  if (!bucket || !key || !["GET", "HEAD"].includes(request.method)) {
+    return null;
+  }
+
+  const stored = await bucket.get(key);
+  if (stored) {
+    return responseFromR2Object(stored, request.method);
+  }
+
+  const response = await container.fetch(switchPort(request, BACKEND_PORT));
+  if (request.method === "GET" && shouldCacheOutputResponse(response)) {
+    ctx.waitUntil(cacheOutputResponse(bucket, key, response.clone()));
+  }
+  return response;
+}
+
 function isAuthEnabled(): boolean {
   const flag = envValue("DEEPTUTOR_AUTH_ENABLED").trim().toLowerCase();
   const password = envValue("DEEPTUTOR_AUTH_PASSWORD").trim();
@@ -243,7 +405,7 @@ async function requireAuth(request: Request): Promise<Response | null> {
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
     if (url.pathname === "/_worker/health") {
@@ -258,6 +420,10 @@ export default {
     const container = getContainer(env.DEEPTUTOR_CONTAINER);
 
     if (isBackendRequest(request)) {
+      const outputResponse = await fetchOutputFromR2OrContainer(request, env, container, ctx);
+      if (outputResponse) {
+        return outputResponse;
+      }
       return container.fetch(switchPort(request, BACKEND_PORT));
     }
 

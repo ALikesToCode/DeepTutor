@@ -28,9 +28,17 @@
     "SEARCH_PROVIDER": "tavily",
     "SEARCH_BASE_URL": "https://api.tavily.com/search",
     "SEARCH_PROXY": "",
+    "DEEPTUTOR_R2_OUTPUTS_ENABLED": "true",
+    "DEEPTUTOR_R2_OUTPUTS_PREFIX": "outputs/",
     "DISABLE_SSL_VERIFY": "false",
     "ENVIRONMENT": "production"
   },
+  "r2_buckets": [
+    {
+      "binding": "DEEPTUTOR_FILES",
+      "bucket_name": "deeptutor-files"
+    }
+  ],
   "containers": [
     {
       "class_name": "DeepTutorContainer",
