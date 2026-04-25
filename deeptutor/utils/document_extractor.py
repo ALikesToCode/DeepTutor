@@ -1,8 +1,15 @@
 """Document text extraction for chat attachments.
 
 Bytes-in, text-out. Used by the chat turn runtime to inline the text of
-user-dropped Office documents (.pdf / .docx / .xlsx / .pptx) into the
-``effective_user_message`` sent to the LLM.
+user-dropped files into the ``effective_user_message`` sent to the LLM.
+
+Two format families:
+  * **Binary Office** (.pdf / .docx / .xlsx / .pptx) — parsed with pymupdf /
+    python-docx / openpyxl / python-pptx.
+  * **Text-like** (plain text, Markdown, source code, JSON, XML, CSV, …) —
+    the extension set is imported from ``FileTypeRouter.TEXT_EXTENSIONS`` so
+    the chat composer accepts every format the knowledge-base pipeline
+    already ingests. Decoded with the same multi-encoding fallback chain.
 
 Design mirrors ``nanobot/nanobot/utils/document.py`` but works on bytes
 instead of file paths so the server never touches disk.
@@ -14,7 +21,8 @@ import base64
 from collections.abc import Iterable
 import io
 import logging
-from pathlib import PurePosixPath
+
+from deeptutor.services.rag.file_routing import FileTypeRouter
 
 try:
     import fitz  # pymupdf
@@ -47,7 +55,11 @@ except ImportError:  # pragma: no cover
 logger = logging.getLogger(__name__)
 
 
-SUPPORTED_DOC_EXTENSIONS: frozenset[str] = frozenset({".pdf", ".docx", ".xlsx", ".pptx"})
+_OFFICE_EXTENSIONS: frozenset[str] = frozenset({".pdf", ".docx", ".xlsx", ".pptx"})
+# Text-like formats are sourced from the KB file router so chat and KB stay
+# in sync. Adding a new code / config extension in one place propagates here.
+TEXT_LIKE_EXTENSIONS: frozenset[str] = frozenset(FileTypeRouter.TEXT_EXTENSIONS)
+SUPPORTED_DOC_EXTENSIONS: frozenset[str] = _OFFICE_EXTENSIONS | TEXT_LIKE_EXTENSIONS
 
 MAX_DOC_BYTES = 10 * 1024 * 1024
 MAX_TOTAL_DOC_BYTES = 25 * 1024 * 1024
@@ -87,7 +99,7 @@ def is_document_extension(filename: str) -> bool:
 
 
 def _ext(filename: str) -> str:
-    return PurePosixPath(filename or "").suffix.lower()
+    return FileTypeRouter.extension_for_path(filename)
 
 
 def _truncate(text: str, max_length: int) -> str:
@@ -97,7 +109,12 @@ def _truncate(text: str, max_length: int) -> str:
 
 
 def _check_magic(ext: str, data: bytes, filename: str) -> None:
-    """Validate file header to catch extension spoofing."""
+    """Validate file header to catch extension spoofing.
+
+    Only binary formats have well-known magic prefixes. Text-like extensions
+    (code, markup, config, ...) are guarded by the shared KB binary sniff
+    before decoding.
+    """
     if ext == ".pdf":
         if not data.startswith(_PDF_MAGIC):
             raise CorruptDocumentError(
@@ -141,6 +158,8 @@ def extract_text_from_bytes(filename: str, data: bytes) -> str:
         text = _extract_xlsx(data, filename)
     elif ext == ".pptx":
         text = _extract_pptx(data, filename)
+    elif ext in TEXT_LIKE_EXTENSIONS:
+        text = _extract_text_like(data, filename)
     else:  # pragma: no cover - guarded above
         raise UnsupportedDocumentError(f"{filename}: unreachable", filename=filename)
 
@@ -248,6 +267,21 @@ def _extract_pptx(data: bytes, filename: str) -> str:
         if slide_text:
             slides.append(f"--- Slide {i} ---\n" + "\n".join(slide_text))
     return "\n\n".join(slides)
+
+
+def _extract_text_like(data: bytes, filename: str) -> str:
+    """Decode a plain-text / code / config / markup file.
+
+    Uses the same encoding fallback chain as the KB pipeline
+    (``FileTypeRouter.decode_bytes``) so a GBK-encoded Python file or a
+    UTF-8-BOM Markdown works the same way in both places.
+    """
+    try:
+        return FileTypeRouter.decode_bytes(data)
+    except UnicodeDecodeError as exc:
+        raise CorruptDocumentError(
+            f"{filename}: failed to decode text ({exc})", filename=filename
+        ) from exc
 
 
 def _collect_pptx_shape_text(shape, out: list[str]) -> None:

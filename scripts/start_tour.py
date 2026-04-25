@@ -41,6 +41,26 @@ def _resolve_python() -> str:
 
 _PYTHON: str = _resolve_python()
 
+
+def _resolve_pip_cmd() -> tuple[list[str], list[str]]:
+    """Return ``(prefix, python_args)`` for the best pip invocation.
+
+    Prefer ``uv pip`` when uv is on PATH (uv-managed venvs may have pip
+    disabled).  When using uv, also bind ``--python _PYTHON`` so packages land
+    in the same interpreter that's running this script — without it ``uv pip``
+    falls back to its own venv discovery (``$VIRTUAL_ENV`` / ``./.venv``) and
+    may install into a different environment.
+
+    Falls back to ``python -m pip`` (with no extra args) when uv is absent.
+    """
+    uv = shutil.which("uv")
+    if uv:
+        return [uv, "pip"], ["--python", _PYTHON]
+    return [_PYTHON, "-m", "pip"], []
+
+
+_PIP_CMD, _PIP_PYTHON_ARGS = _resolve_pip_cmd()
+
 _BOOTSTRAP_PACKAGES = [
     ("yaml", "PyYAML>=6.0"),
 ]
@@ -61,7 +81,7 @@ def _bootstrap() -> None:
         return
     print(f"  Installing bootstrap dependencies: {', '.join(missing)} ...")
     subprocess.check_call(
-        [_PYTHON, "-m", "pip", "install", *missing, "-q"],
+        [*_PIP_CMD, "install", *missing, *_PIP_PYTHON_ARGS, "-q"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -428,12 +448,17 @@ def _install_commands(
 
     cmds: list[tuple[list[str], Path]] = []
     for req in PROFILE_COMMANDS[profile]:
-        cmds.append(([_PYTHON, "-m", "pip", "install", "-r", req], PROJECT_ROOT))
+        cmds.append(([*_PIP_CMD, "install", "-r", req, *_PIP_PYTHON_ARGS], PROJECT_ROOT))
     if include_math_animator:
         cmds.append(
-            ([_PYTHON, "-m", "pip", "install", "-r", MATH_ANIMATOR_REQUIREMENTS], PROJECT_ROOT)
+            (
+                [*_PIP_CMD, "install", "-r", MATH_ANIMATOR_REQUIREMENTS, *_PIP_PYTHON_ARGS],
+                PROJECT_ROOT,
+            )
         )
-    cmds.append(([_PYTHON, "-m", "pip", "install", "-e", ".", "--no-deps"], PROJECT_ROOT))
+    cmds.append(
+        ([*_PIP_CMD, "install", "-e", ".", "--no-deps", *_PIP_PYTHON_ARGS], PROJECT_ROOT)
+    )
     if profile.startswith("web"):
         cmds.append(([_get_npm_command(), "install"], PROJECT_ROOT / "web"))
     return cmds
@@ -732,7 +757,12 @@ def _get_version(cmd: list[str]) -> str | None:
 
 
 def _resolve_uv() -> list[str]:
-    """Return a subprocess-ready uv command prefix, installing uv if needed."""
+    """Return a subprocess-ready uv command prefix, installing uv if needed.
+
+    Bootstrap uses ``python -m pip`` because uv was not found yet. After
+    installation, prefer the resolved executable on PATH and fall back to
+    ``python -m uv`` for environments where scripts are not added to PATH.
+    """
     found = shutil.which("uv")
     if found:
         return [found]
@@ -801,7 +831,8 @@ def _install_dependencies() -> None:
 
     # --- detect Node.js / npm ---
     node_version = _get_version(["node", "--version"])
-    npm_version = _get_version(["npm", "--version"])
+    _npm_cmd = _get_npm_command()
+    npm_version = _get_version([_npm_cmd, "--version"])
 
     if node_version and npm_version:
         log_success(_t("install_node_ok", version=node_version))
@@ -824,7 +855,7 @@ def _install_dependencies() -> None:
                 log_error(_t("install_node_abort"))
                 raise SystemExit(1)
             node_version = _get_version(["node", "--version"])
-            npm_version = _get_version(["npm", "--version"])
+            npm_version = _get_version([_get_npm_command(), "--version"])
             if node_version and npm_version:
                 break
         else:

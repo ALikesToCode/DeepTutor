@@ -19,6 +19,7 @@ class TestExtensionClassification:
             ("doc.pdf", DocumentType.PDF),
             ("DOC.PDF", DocumentType.PDF),  # case-insensitive
             ("notes.md", DocumentType.TEXT),
+            (".env", DocumentType.TEXT),
             ("readme.MARKDOWN", DocumentType.TEXT),
             ("data.json", DocumentType.TEXT),
             ("script.py", DocumentType.TEXT),
@@ -40,6 +41,11 @@ class TestUnknownExtensionFallback:
     def test_unknown_extension_with_binary_content_is_unknown(self, tmp_path: Path) -> None:
         path = tmp_path / "blob.bin"
         path.write_bytes(b"\x00\x01\x02\xff")
+        assert FileTypeRouter.get_document_type(str(path)) == DocumentType.UNKNOWN
+
+    def test_known_text_extension_with_binary_content_is_unknown(self, tmp_path: Path) -> None:
+        path = tmp_path / "blob.txt"
+        path.write_bytes(b"\x00\x01\x02PNG\r\n\x1a\n")
         assert FileTypeRouter.get_document_type(str(path)) == DocumentType.UNKNOWN
 
 
@@ -106,3 +112,9 @@ class TestReadTextFile:
         path.write_bytes("中文测试".encode("gbk"))
         content = await FileTypeRouter.read_text_file(str(path))
         assert "中文" in content
+
+    async def test_rejects_binary_text_file(self, tmp_path: Path) -> None:
+        path = tmp_path / "binary.txt"
+        path.write_bytes(b"\x00\x01\x02PNG\r\n\x1a\n")
+        with pytest.raises(UnicodeDecodeError):
+            await FileTypeRouter.read_text_file(str(path))
