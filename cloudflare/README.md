@@ -70,10 +70,25 @@ R2 before waking the application container. On a cache miss, it streams the file
 from the container and writes the successful response back to R2 under the
 `outputs/` prefix.
 
+The deployment also enables a whole-`data/` snapshot bridge for the current
+file-backed application. On container start, `/app/data` is hydrated from
+`state/data.tar.gz` in R2 using a short timeout so rollout health is not blocked.
+While the container is running, and again during shutdown, the container writes
+a fresh snapshot back through the protected `/_worker/r2-state-snapshot`
+endpoint. This keeps SQLite/session state, settings, notebooks, books, and
+knowledge-base files available across container sleep/restart while native
+D1/R2/Vectorize adapters are implemented.
+
 Create the bucket before deploying to a new account:
 
 ```bash
 wrangler r2 bucket create deeptutor-files
+```
+
+Generate and store the internal snapshot token as a Worker secret:
+
+```bash
+openssl rand -hex 32 | wrangler secret put DEEPTUTOR_R2_SYNC_TOKEN
 ```
 
 ## Check Status
@@ -96,7 +111,9 @@ App traffic goes through one container instance:
 Cloudflare Containers do not provide durable local storage. Per the
 [Containers lifecycle documentation](https://developers.cloudflare.com/containers/platform-details/),
 container disk is ephemeral: after an instance sleeps, the next start gets a
-fresh disk from the image. Treat `data/` as a cache only.
+fresh disk from the image. The R2 snapshot bridge makes current file-backed
+features survive sleep/restart for the single-container deployment, but `data/`
+should still be treated as a cache in new Cloudflare code.
 
 Use Cloudflare managed storage for durable state:
 
@@ -111,5 +128,6 @@ Use Cloudflare managed storage for durable state:
 | Existing external SQL option | Local SQLite today | [Hyperdrive](https://developers.cloudflare.com/hyperdrive/) | If DeepTutor moves to Postgres/MySQL instead of D1, use Hyperdrive to pool and accelerate database access from Cloudflare. |
 | Reindex/import jobs | Local process state | [Queues](https://developers.cloudflare.com/queues/) | Use Queues for durable background ingestion, reindexing, and media-processing work that should survive container restarts. |
 
-Do not increase `max_instances` until the write paths above are moved off the
-container filesystem or made safe to hydrate from R2/D1/Vectorize.
+Do not increase `max_instances` until the write paths above are moved to native
+D1/R2/Vectorize/DO adapters. The snapshot bridge is intentionally for
+`max_instances: 1`; two writers could overwrite each other's snapshots.

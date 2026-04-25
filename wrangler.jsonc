@@ -30,6 +30,11 @@
     "SEARCH_PROXY": "",
     "DEEPTUTOR_R2_OUTPUTS_ENABLED": "true",
     "DEEPTUTOR_R2_OUTPUTS_PREFIX": "outputs/",
+    "DEEPTUTOR_R2_STATE_SYNC_ENABLED": "true",
+    "DEEPTUTOR_R2_STATE_SNAPSHOT_KEY": "state/data.tar.gz",
+    "DEEPTUTOR_R2_SYNC_INTERVAL_SECONDS": "300",
+    "DEEPTUTOR_R2_SYNC_REQUEST_TIMEOUT_SECONDS": "20",
+    "DEEPTUTOR_R2_SYNC_URL": "https://deeptutor.cserules.workers.dev/_worker/r2-state-snapshot",
     "DISABLE_SSL_VERIFY": "false",
     "ENVIRONMENT": "production"
   },

@@ -4,6 +4,7 @@ import { env as cloudflareEnv } from "cloudflare:workers";
 interface Env {
   DEEPTUTOR_CONTAINER: DurableObjectNamespace<DeepTutorContainer>;
   DEEPTUTOR_FILES?: R2Bucket;
+  DEEPTUTOR_R2_SYNC_TOKEN?: string;
 }
 
 const stringEnv = cloudflareEnv as unknown as Record<string, string | undefined>;
@@ -32,6 +33,11 @@ const DEFAULT_ENV = {
   SEARCH_PROXY: "",
   DEEPTUTOR_R2_OUTPUTS_ENABLED: "",
   DEEPTUTOR_R2_OUTPUTS_PREFIX: "outputs/",
+  DEEPTUTOR_R2_STATE_SYNC_ENABLED: "",
+  DEEPTUTOR_R2_STATE_SNAPSHOT_KEY: "state/data.tar.gz",
+  DEEPTUTOR_R2_SYNC_INTERVAL_SECONDS: "300",
+  DEEPTUTOR_R2_SYNC_REQUEST_TIMEOUT_SECONDS: "20",
+  DEEPTUTOR_R2_SYNC_URL: "",
   DISABLE_SSL_VERIFY: "false",
   ENVIRONMENT: "production",
 } as const;
@@ -39,6 +45,7 @@ const DEFAULT_ENV = {
 const SECRET_ENV_NAMES = [
   "DEEPTUTOR_AUTH_PASSWORD",
   "DEEPTUTOR_AUTH_SECRET",
+  "DEEPTUTOR_R2_SYNC_TOKEN",
   "LLM_API_KEY",
   "EMBEDDING_API_KEY",
   "SEARCH_API_KEY",
@@ -153,6 +160,63 @@ function isBackendRequest(request: Request): boolean {
     return false;
   }
   return url.pathname === "/api" || url.pathname.startsWith("/api/");
+}
+
+function isR2StateSyncEnabled(env: Env): boolean {
+  if (!env.DEEPTUTOR_FILES || !env.DEEPTUTOR_R2_SYNC_TOKEN) return false;
+
+  const flag = envValue("DEEPTUTOR_R2_STATE_SYNC_ENABLED").trim().toLowerCase();
+  return !["0", "false", "no", "off"].includes(flag);
+}
+
+function isAuthorizedR2StateSyncRequest(request: Request, env: Env): boolean {
+  const token = env.DEEPTUTOR_R2_SYNC_TOKEN ?? "";
+  const authorization = request.headers.get("authorization") ?? "";
+  const prefix = "Bearer ";
+  if (!token || !authorization.startsWith(prefix)) {
+    return false;
+  }
+  return constantTimeEqual(authorization.slice(prefix.length), token);
+}
+
+async function handleR2StateSnapshot(request: Request, env: Env): Promise<Response> {
+  if (!isR2StateSyncEnabled(env) || !env.DEEPTUTOR_FILES) {
+    return new Response("R2 state sync is not configured.", { status: 404 });
+  }
+  if (!isAuthorizedR2StateSyncRequest(request, env)) {
+    return new Response("Unauthorized.", { status: 401 });
+  }
+
+  const key = envValue(
+    "DEEPTUTOR_R2_STATE_SNAPSHOT_KEY",
+    DEFAULT_ENV.DEEPTUTOR_R2_STATE_SNAPSHOT_KEY,
+  );
+
+  if (request.method === "GET" || request.method === "HEAD") {
+    const object = await env.DEEPTUTOR_FILES.get(key);
+    if (!object) {
+      return new Response(null, { status: 204 });
+    }
+    return responseFromR2Object(object, request.method);
+  }
+
+  if (request.method === "PUT") {
+    if (!request.body) {
+      return new Response("Snapshot body is required.", { status: 400 });
+    }
+    await env.DEEPTUTOR_FILES.put(key, request.body, {
+      httpMetadata: {
+        contentType: request.headers.get("content-type") || "application/gzip",
+        cacheControl: "no-store",
+      },
+    });
+    return Response.json({ ok: true, key });
+  }
+
+  return new Response("Method not allowed.", {
+    status: 405,
+    headers: { allow: "GET, HEAD, PUT" },
+  });
 }
 
 function isR2OutputsEnabled(env: Env): boolean {
@@ -410,6 +474,9 @@ export default {
 
     if (url.pathname === "/_worker/health") {
       return Response.json({ ok: true, service: "deeptutor" });
+    }
+    if (url.pathname === "/_worker/r2-state-snapshot") {
+      return handleR2StateSnapshot(request, env);
     }
 
     const authResponse = await requireAuth(request);

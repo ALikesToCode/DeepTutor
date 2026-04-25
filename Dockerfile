@@ -303,6 +303,9 @@ if [ -z "$LLM_MODEL" ]; then
 fi
 
 # Initialize user data directories if empty
+echo "☁️  Restoring Cloudflare R2 state snapshot when configured..."
+python /app/scripts/cloudflare_r2_state_sync.py hydrate || echo "   ⚠️ R2 state hydrate failed; continuing with local cache"
+
 echo "📁 Checking data directories..."
 echo "   Ensuring runtime settings and workspace layout..."
 python -c "
@@ -318,6 +321,11 @@ echo "   - data/user/settings/main.yaml"
 echo "   - data/user/settings/agents.yaml"
 echo "============================================"
 
+python /app/scripts/cloudflare_r2_state_sync.py loop &
+R2_SYNC_PID=$!
+python /app/scripts/cloudflare_r2_state_sync.py snapshot &
+R2_INITIAL_SYNC_PID=$!
+
 # Start both services directly. If either one exits, stop the container so the
 # platform reports a real startup failure instead of a running process with no ports.
 /bin/bash /app/start-backend.sh &
@@ -329,6 +337,11 @@ FRONTEND_PID=$!
 cleanup() {
     kill "${BACKEND_PID}" "${FRONTEND_PID}" 2>/dev/null || true
     wait "${BACKEND_PID}" "${FRONTEND_PID}" 2>/dev/null || true
+    kill "${R2_INITIAL_SYNC_PID}" 2>/dev/null || true
+    wait "${R2_INITIAL_SYNC_PID}" 2>/dev/null || true
+    kill "${R2_SYNC_PID}" 2>/dev/null || true
+    wait "${R2_SYNC_PID}" 2>/dev/null || true
+    python /app/scripts/cloudflare_r2_state_sync.py snapshot || true
 }
 
 trap cleanup INT TERM
