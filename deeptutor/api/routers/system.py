@@ -3,8 +3,13 @@ System Status API Router
 Manages system status checks and model connection tests
 """
 
+import asyncio
 from datetime import datetime
+import os
+from pathlib import Path
+import sys
 import time
+from typing import Literal
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -24,6 +29,10 @@ class TestResponse(BaseModel):
     model: str | None = None
     response_time_ms: float | None = None
     error: str | None = None
+
+
+class R2StateSyncTestPayload(BaseModel):
+    command: Literal["snapshot", "hydrate"] = "snapshot"
 
 
 @router.get("/runtime-topology")
@@ -70,6 +79,23 @@ async def get_system_status():
         "llm": {"status": "unknown", "model": None, "testable": True},
         "embeddings": {"status": "unknown", "model": None, "testable": True},
         "search": {"status": "optional", "provider": None, "testable": True},
+        "cloudflare": {
+            "r2_outputs": {
+                "enabled": _env_flag("DEEPTUTOR_R2_OUTPUTS_ENABLED"),
+                "prefix": os.environ.get("DEEPTUTOR_R2_OUTPUTS_PREFIX", "outputs/"),
+            },
+            "r2_state_sync": {
+                "enabled": _env_flag("DEEPTUTOR_R2_STATE_SYNC_ENABLED"),
+                "sync_url_configured": bool(os.environ.get("DEEPTUTOR_R2_SYNC_URL")),
+                "sync_token_configured": bool(os.environ.get("DEEPTUTOR_R2_SYNC_TOKEN")),
+                "snapshot_key": os.environ.get(
+                    "DEEPTUTOR_R2_STATE_SNAPSHOT_KEY", "state/data.tar.gz"
+                ),
+                "interval_seconds": os.environ.get("DEEPTUTOR_R2_SYNC_INTERVAL_SECONDS", "300"),
+                "data_dir": os.environ.get("DEEPTUTOR_DATA_DIR", "/app/data"),
+                "testable": True,
+            },
+        },
     }
 
     # Check backend status (this endpoint itself proves backend is online)
@@ -131,6 +157,10 @@ async def get_system_status():
         result["search"]["error"] = str(e)
 
     return result
+
+
+def _env_flag(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 @router.post("/test/llm", response_model=TestResponse)
@@ -302,3 +332,89 @@ async def test_search_connection():
             response_time_ms=round(response_time, 2),
             error=str(e),
         )
+
+
+@router.post("/test/r2-state-sync", response_model=TestResponse)
+async def test_r2_state_sync(payload: R2StateSyncTestPayload | None = None):
+    start_time = time.time()
+    command = payload.command if payload else "snapshot"
+
+    if not _env_flag("DEEPTUTOR_R2_STATE_SYNC_ENABLED"):
+        return TestResponse(
+            success=False,
+            message="R2 state sync is disabled",
+            model="r2-state-sync",
+            error="Set DEEPTUTOR_R2_STATE_SYNC_ENABLED=true",
+        )
+
+    missing = [
+        name
+        for name in ("DEEPTUTOR_R2_SYNC_URL", "DEEPTUTOR_R2_SYNC_TOKEN")
+        if not os.environ.get(name)
+    ]
+    if missing:
+        return TestResponse(
+            success=False,
+            message="R2 state sync is not fully configured",
+            model="r2-state-sync",
+            error=f"Missing {', '.join(missing)}",
+        )
+
+    script = Path(
+        os.environ.get("DEEPTUTOR_R2_SYNC_SCRIPT", "/app/scripts/cloudflare_r2_state_sync.py")
+    )
+    if not script.exists():
+        script = Path.cwd() / "scripts" / "cloudflare_r2_state_sync.py"
+    if not script.exists():
+        return TestResponse(
+            success=False,
+            message="R2 state sync script was not found",
+            model="r2-state-sync",
+            error=str(script),
+        )
+
+    try:
+        process = await asyncio.create_subprocess_exec(
+            sys.executable,
+            str(script),
+            command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=45)
+    except TimeoutError:
+        response_time = (time.time() - start_time) * 1000
+        return TestResponse(
+            success=False,
+            message=f"R2 state sync {command} timed out",
+            model="r2-state-sync",
+            response_time_ms=round(response_time, 2),
+            error="Timed out after 45 seconds",
+        )
+    except Exception as e:
+        response_time = (time.time() - start_time) * 1000
+        return TestResponse(
+            success=False,
+            message=f"R2 state sync {command} failed: {e!s}",
+            model="r2-state-sync",
+            response_time_ms=round(response_time, 2),
+            error=str(e),
+        )
+
+    response_time = (time.time() - start_time) * 1000
+    output = (stdout + stderr).decode("utf-8", errors="replace").strip()
+    if process.returncode == 0:
+        return TestResponse(
+            success=True,
+            message=f"R2 state sync {command} successful",
+            model="r2-state-sync",
+            response_time_ms=round(response_time, 2),
+        )
+
+    return TestResponse(
+        success=False,
+        message=f"R2 state sync {command} failed",
+        model="r2-state-sync",
+        response_time_ms=round(response_time, 2),
+        error=output[-1000:] or f"exit code {process.returncode}",
+    )
