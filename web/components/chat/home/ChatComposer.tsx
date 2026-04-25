@@ -44,6 +44,7 @@ import type {
 } from "@/lib/research-types";
 import { ReferenceChips } from "./ChatMessages";
 import { ComposerInput, type ComposerInputHandle } from "./ComposerInput";
+import ModelSelector from "@/components/chat/ModelSelector";
 
 const QuizConfigPanel = dynamic(
   () => import("@/components/quiz/QuizConfigPanel"),
@@ -854,6 +855,8 @@ export default memo(function ChatComposer({
               </div>
 
               <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                <ModelSelector disabled={isStreaming} />
+
                 <select
                   value={stateKnowledgeBase}
                   onChange={(e) => onSetKB(e.target.value)}

@@ -12,6 +12,7 @@ import {
   Info,
   Loader2,
   Plus,
+  RefreshCw,
   Rocket,
   Save,
   Search,
@@ -78,6 +79,14 @@ type ProviderOption = {
   label: string;
   base_url?: string;
   default_dim?: string;
+};
+
+type RemoteModelOption = {
+  id: string;
+  label?: string;
+  dimension?: string;
+  premium?: boolean;
+  owned_by?: string;
 };
 
 type SettingsPayload = {
@@ -192,6 +201,25 @@ function formatContextWindowUpdatedAt(
     dateStyle: "medium",
     timeStyle: "short",
   });
+}
+
+function mergeActiveModelOptions(
+  profile: CatalogProfile | null,
+  remoteModels: RemoteModelOption[],
+): RemoteModelOption[] {
+  const byId = new Map<string, RemoteModelOption>();
+  remoteModels.forEach((model) => {
+    if (model.id) byId.set(model.id, model);
+  });
+  (profile?.models || []).forEach((model) => {
+    if (!model.model || byId.has(model.model)) return;
+    byId.set(model.model, {
+      id: model.model,
+      label: model.name || model.model,
+      dimension: model.dimension,
+    });
+  });
+  return Array.from(byId.values()).sort((a, b) => a.id.localeCompare(b.id));
 }
 
 // ---------------------------------------------------------------------------
@@ -351,6 +379,13 @@ function SettingsPageContent() {
   const [providers, setProviders] = useState<
     Record<ServiceName, ProviderOption[]>
   >({ llm: [], embedding: [], search: [] });
+  const [remoteModels, setRemoteModels] = useState<
+    Record<"llm" | "embedding", RemoteModelOption[]>
+  >({ llm: [], embedding: [] });
+  const [modelListLoading, setModelListLoading] = useState<
+    "llm" | "embedding" | null
+  >(null);
+  const [modelListError, setModelListError] = useState("");
   const eventSourceRef = useRef<EventSource | null>(null);
 
   // Tour-specific state
@@ -398,6 +433,10 @@ function SettingsPageContent() {
 
   const activeProfile = getActiveProfile(draft, activeService);
   const activeModel = getActiveModel(draft, activeService);
+  const activeModelOptions =
+    activeService === "search"
+      ? []
+      : mergeActiveModelOptions(activeProfile, remoteModels[activeService]);
   const hasUnsavedChanges = JSON.stringify(catalog) !== JSON.stringify(draft);
   const searchProviderRaw =
     activeService === "search"
@@ -565,6 +604,55 @@ function SettingsPageContent() {
       if (!model) return;
       (model[field] as string | undefined) = value;
     });
+  };
+
+  const selectRemoteModel = (modelId: string) => {
+    if (activeService === "search") return;
+    const selected = activeModelOptions.find((model) => model.id === modelId);
+    mutateCatalog((next) => {
+      const model = getActiveModel(next, activeService);
+      if (!model) return;
+      const previousId = model.model;
+      model.model = modelId;
+      if (!model.name || model.name === previousId) {
+        model.name = selected?.label?.split(" · ")[0] || modelId;
+      }
+      if (activeService === "embedding" && selected?.dimension) {
+        model.dimension = selected.dimension;
+      }
+    });
+  };
+
+  const refreshModelList = async (serviceName = activeService) => {
+    if (serviceName === "search") return;
+    setModelListLoading(serviceName);
+    setModelListError("");
+    try {
+      const response = await fetch(apiUrl(`/api/v1/settings/models/${serviceName}`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ catalog: draft }),
+      });
+      const payload = (await response.json()) as {
+        models?: RemoteModelOption[];
+        detail?: string;
+        message?: string;
+      };
+      if (!response.ok) {
+        throw new Error(payload.detail || payload.message || "Could not load models.");
+      }
+      setRemoteModels((current) => ({
+        ...current,
+        [serviceName]: payload.models || [],
+      }));
+      if (payload.message) setModelListError(payload.message);
+    } catch (error) {
+      setModelListError(
+        error instanceof Error ? error.message : "Could not load models.",
+      );
+    } finally {
+      setModelListLoading(null);
+    }
   };
 
   const updateContextWindowField = (value: string) => {
@@ -1173,17 +1261,55 @@ function SettingsPageContent() {
                           />
                         </div>
                         <div>
-                          <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
-                            {t("Model ID")}
+                          <div className="mb-1.5 flex items-center justify-between gap-2">
+                            <span className="text-[12px] text-[var(--muted-foreground)]">
+                              {t("Model ID")}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => void refreshModelList()}
+                              disabled={modelListLoading === activeService}
+                              className="inline-flex items-center gap-1 text-[11px] text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)] disabled:opacity-40"
+                              title={t("Refresh models")}
+                            >
+                              {modelListLoading === activeService ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-3 w-3" />
+                              )}
+                              {t("Refresh")}
+                            </button>
                           </div>
-                          <input
-                            className={inputClass}
-                            value={activeModel.model}
-                            onChange={(e) =>
-                              updateModelField("model", e.target.value)
-                            }
-                            placeholder="gpt-4o"
-                          />
+                          {activeModelOptions.length > 0 ? (
+                            <div className="relative">
+                              <select
+                                className={selectClass}
+                                value={activeModel.model}
+                                onChange={(e) => selectRemoteModel(e.target.value)}
+                              >
+                                {activeModelOptions.map((model) => (
+                                  <option key={model.id} value={model.id}>
+                                    {model.label || model.id}
+                                  </option>
+                                ))}
+                              </select>
+                              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted-foreground)]" />
+                            </div>
+                          ) : (
+                            <input
+                              className={inputClass}
+                              value={activeModel.model}
+                              onChange={(e) =>
+                                updateModelField("model", e.target.value)
+                              }
+                              placeholder="gpt-5.4-mini"
+                            />
+                          )}
+                          {modelListError && (
+                            <p className="mt-1.5 text-[11px] text-amber-600 dark:text-amber-400">
+                              {t(modelListError)}
+                            </p>
+                          )}
                         </div>
                         {activeService === "llm" && (
                           <>

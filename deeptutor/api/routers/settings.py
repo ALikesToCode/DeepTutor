@@ -72,6 +72,10 @@ class CatalogPayload(BaseModel):
     catalog: dict[str, Any]
 
 
+class ModelListPayload(BaseModel):
+    catalog: dict[str, Any] | None = None
+
+
 def _invalidate_runtime_caches() -> None:
     """Force runtime clients/config to pick up the latest saved catalog."""
     clear_llm_config_cache()
@@ -141,6 +145,125 @@ def _provider_choices() -> dict[str, list[dict[str, str]]]:
     return {"llm": llm, "embedding": embedding, "search": search}
 
 
+def _active_profile(catalog: dict[str, Any], service_name: str) -> dict[str, Any] | None:
+    service = catalog.get("services", {}).get(service_name, {})
+    active_id = service.get("active_profile_id")
+    profiles = service.get("profiles", [])
+    if not isinstance(profiles, list):
+        return None
+    for profile in profiles:
+        if isinstance(profile, dict) and profile.get("id") == active_id:
+            return profile
+    first = profiles[0] if profiles else None
+    return first if isinstance(first, dict) else None
+
+
+def _profile_model_api_key(service_name: str, profile: dict[str, Any]) -> str:
+    explicit = str(profile.get("api_key") or "").strip()
+    if explicit:
+        return explicit
+
+    from deeptutor.services.config.env_store import get_env_store
+
+    env_store = get_env_store()
+    if service_name == "llm":
+        from deeptutor.services.provider_registry import find_by_name
+
+        spec = find_by_name(str(profile.get("binding") or ""))
+        env_key = spec.env_key if spec else ""
+        return env_store.get(env_key, "").strip() if env_key else ""
+
+    from deeptutor.services.config.provider_runtime import EMBEDDING_PROVIDERS
+
+    spec = EMBEDDING_PROVIDERS.get(str(profile.get("binding") or "").strip().lower())
+    if not spec:
+        return ""
+    for env_key in spec.api_key_envs:
+        value = env_store.get(env_key, "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _model_endpoint_matches(service_name: str, endpoint: str) -> bool:
+    if not endpoint:
+        return True
+    if service_name == "embedding":
+        return endpoint.rstrip("/") == "/v1/embeddings"
+    return endpoint.rstrip("/") in {"/v1/chat/completions", "/v1/responses"}
+
+
+def _normalize_model_items(service_name: str, items: list[Any]) -> list[dict[str, Any]]:
+    models: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in items:
+        if isinstance(item, str):
+            model_id = item.strip()
+            endpoint = ""
+            owned_by = ""
+            premium = False
+        elif isinstance(item, dict):
+            model_id = str(item.get("id") or item.get("model") or item.get("name") or "").strip()
+            endpoint = str(item.get("endpoint") or "").strip()
+            owned_by = str(item.get("owned_by") or "").strip()
+            premium = bool(item.get("premium", False))
+        else:
+            continue
+
+        if not model_id or model_id in seen:
+            continue
+        if not _model_endpoint_matches(service_name, endpoint):
+            continue
+        seen.add(model_id)
+        label_parts = [model_id]
+        if owned_by:
+            label_parts.append(owned_by)
+        if premium:
+            label_parts.append("premium")
+        models.append(
+            {
+                "id": model_id,
+                "label": " · ".join(label_parts),
+                "endpoint": endpoint,
+                "owned_by": owned_by,
+                "premium": premium,
+            }
+        )
+    return sorted(models, key=lambda model: model["id"].lower())
+
+
+async def _fetch_provider_models(
+    *,
+    service_name: str,
+    binding: str,
+    base_url: str,
+    api_key: str,
+) -> list[dict[str, Any]]:
+    from deeptutor.services.llm.cloud_provider import _get_aiohttp_connector
+    from deeptutor.services.llm.utils import build_auth_headers
+    import aiohttp
+
+    url = f"{base_url.rstrip('/')}/models"
+    headers = build_auth_headers(api_key or None, binding or "openai")
+    headers.pop("Content-Type", None)
+    timeout = aiohttp.ClientTimeout(total=30)
+    connector = _get_aiohttp_connector()
+    async with aiohttp.ClientSession(
+        timeout=timeout, connector=connector, trust_env=True
+    ) as session:
+        async with session.get(url, headers=headers) as response:
+            response.raise_for_status()
+            payload = await response.json()
+
+    if isinstance(payload, dict):
+        raw_items = payload.get("data") or payload.get("models") or payload.get("items") or []
+    elif isinstance(payload, list):
+        raw_items = payload
+    else:
+        raw_items = []
+    return _normalize_model_items(service_name, raw_items if isinstance(raw_items, list) else [])
+
+
 @router.get("")
 async def get_settings():
     return {
@@ -153,6 +276,31 @@ async def get_settings():
 @router.get("/catalog")
 async def get_catalog():
     return {"catalog": get_model_catalog_service().load()}
+
+
+@router.post("/models/{service_name}")
+async def list_provider_models(
+    service_name: Literal["llm", "embedding"],
+    payload: ModelListPayload | None = None,
+):
+    catalog = payload.catalog if payload and payload.catalog else get_model_catalog_service().load()
+    profile = _active_profile(catalog, service_name)
+    if not profile:
+        return {"models": [], "source": "catalog", "message": "No active profile configured."}
+
+    binding = str(profile.get("binding") or "openai").strip() or "openai"
+    base_url = str(profile.get("base_url") or "").strip()
+    api_key = _profile_model_api_key(service_name, profile)
+    if not base_url:
+        return {"models": [], "source": "catalog", "message": "No base URL configured."}
+
+    models = await _fetch_provider_models(
+        service_name=service_name,
+        binding=binding,
+        base_url=base_url,
+        api_key=api_key,
+    )
+    return {"models": models, "source": f"{base_url.rstrip('/')}/models"}
 
 
 @router.put("/catalog")
