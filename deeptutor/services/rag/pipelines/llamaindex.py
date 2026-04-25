@@ -342,6 +342,14 @@ class LlamaIndexPipeline:
             Search results dictionary with answer, content, and sources
         """
         kwargs.pop("mode", None)
+        query = str(query or "").strip()
+        if not query:
+            return {
+                "query": query,
+                "answer": "Search query is empty.",
+                "content": "",
+                "provider": "llamaindex",
+            }
         self.logger.info(f"Searching KB '{kb_name}' with query: {query[:50]}...")
 
         kb_dir = Path(self.kb_base_dir) / kb_name

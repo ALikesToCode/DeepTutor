@@ -253,6 +253,32 @@ async def test_execute_tool_call_streams_retrieve_progress_for_rag(
     ]
 
 
+def test_augment_rag_kwargs_uses_user_message_when_query_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "deeptutor.agents.chat.agentic_pipeline.get_llm_config",
+        lambda: SimpleNamespace(
+            binding="openai", model="gpt-test", api_key="k", base_url="u", api_version=None
+        ),
+    )
+    pipeline = AgenticChatPipeline(language="en")
+    context = UnifiedContext(
+        session_id="session-1",
+        user_message="week 9 syllabus topics",
+        enabled_tools=["rag"],
+        knowledge_bases=["speech technology"],
+        language="en",
+        metadata={"turn_id": "turn-1"},
+    )
+
+    kwargs = pipeline._augment_tool_kwargs("rag", {"query": ""}, context, "Need retrieval")
+
+    assert kwargs["query"] == "week 9 syllabus topics"
+    assert kwargs["kb_name"] == "speech technology"
+    assert kwargs["mode"] == "hybrid"
+
+
 @pytest.mark.asyncio
 async def test_native_tool_loop_caps_parallel_tool_calls_at_eight(
     monkeypatch: pytest.MonkeyPatch,

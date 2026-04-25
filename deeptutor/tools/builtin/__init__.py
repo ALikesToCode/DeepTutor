@@ -77,7 +77,7 @@ class RAGTool(_PromptHintsMixin, BaseTool):
     async def execute(self, **kwargs: Any) -> ToolResult:
         from deeptutor.tools.rag_tool import rag_search
 
-        query = kwargs.get("query", "")
+        query = str(kwargs.get("query") or "").strip()
         kb_name = kwargs.get("kb_name")
         event_sink = kwargs.get("event_sink")
         extra_kwargs = {
@@ -85,6 +85,14 @@ class RAGTool(_PromptHintsMixin, BaseTool):
             for key, value in kwargs.items()
             if key not in {"query", "kb_name", "event_sink"}
         }
+
+        if not query:
+            return ToolResult(
+                content="RAG query is required.",
+                sources=[],
+                metadata={"error": "missing_query", "kb_name": kb_name},
+                success=False,
+            )
 
         result = await rag_search(
             query=query,

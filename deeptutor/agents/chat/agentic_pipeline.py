@@ -1186,6 +1186,8 @@ class AgenticChatPipeline:
         if tool_name == "rag" and context.knowledge_bases:
             kwargs.setdefault("kb_name", context.knowledge_bases[0])
             kwargs.setdefault("mode", "hybrid")
+            if not str(kwargs.get("query") or "").strip():
+                kwargs["query"] = context.user_message
         elif tool_name == "code_execution":
             kwargs.setdefault("intent", context.user_message)
             kwargs.setdefault("timeout", 30)

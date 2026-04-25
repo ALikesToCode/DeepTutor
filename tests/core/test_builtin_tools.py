@@ -95,6 +95,20 @@ async def test_rag_tool_forwards_query_and_extra_kwargs(monkeypatch: pytest.Monk
 
 
 @pytest.mark.asyncio
+async def test_rag_tool_rejects_empty_query(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fake_rag_search(**_kwargs: Any) -> dict[str, Any]:
+        raise AssertionError("rag_search should not be called for an empty query")
+
+    _install_module(monkeypatch, "deeptutor.tools.rag_tool", rag_search=fake_rag_search)
+
+    result = await RAGTool().execute(query="", kb_name="speech technology")
+
+    assert result.success is False
+    assert result.content == "RAG query is required."
+    assert result.metadata == {"error": "missing_query", "kb_name": "speech technology"}
+
+
+@pytest.mark.asyncio
 async def test_web_search_tool_wraps_sync_function(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, Any] = {}
 
