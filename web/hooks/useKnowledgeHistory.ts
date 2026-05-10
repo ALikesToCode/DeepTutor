@@ -71,7 +71,6 @@ export function useKnowledgeHistory() {
   // SSR and the first client render match — only after hydration can we read
   // browser storage.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setStore(readStore());
   }, []);
 

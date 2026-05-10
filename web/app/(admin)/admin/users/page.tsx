@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslation } from "react-i18next";
 import { fetchAuthStatus } from "@/lib/auth";
 import {
   listUsers,
@@ -37,6 +38,7 @@ function formatDate(iso: string): string {
 }
 
 export default function AdminUsersPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [users, setUsers] = useState<UserRecord[]>([]);
@@ -57,11 +59,11 @@ export default function AdminUsersPage() {
       const data = await listUsers();
       setUsers(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load users");
+      setError(e instanceof Error ? e.message : t("Failed to load users"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     fetchAuthStatus().then((status) => {
@@ -96,11 +98,11 @@ export default function AdminUsersPage() {
     setCreateError("");
     const username = createUsername.trim();
     if (!username) {
-      setCreateError("Username is required.");
+      setCreateError(t("Username is required."));
       return;
     }
     if (createPassword.length < 8) {
-      setCreateError("Password must be at least 8 characters.");
+      setCreateError(t("Password must be at least 8 characters."));
       return;
     }
     setCreateSubmitting(true);
@@ -109,28 +111,35 @@ export default function AdminUsersPage() {
       setShowCreateDialog(false);
       await load();
     } catch (e) {
-      setCreateError(e instanceof Error ? e.message : "Failed to create user");
+      setCreateError(e instanceof Error ? e.message : t("Failed to create user"));
     } finally {
       setCreateSubmitting(false);
     }
   }
 
   async function handleDelete(username: string) {
-    if (!window.confirm(`Delete user "${username}"? This cannot be undone.`))
+    if (
+      !window.confirm(
+        t('Delete user "{{username}}"? This cannot be undone.', { username }),
+      )
+    )
       return;
     setActionError("");
     try {
       await deleteUser(username);
       setUsers((prev) => prev.filter((u) => u.username !== username));
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : "Failed to delete user");
+      setActionError(e instanceof Error ? e.message : t("Failed to delete user"));
     }
   }
 
   async function handleToggleRole(user: UserRecord) {
     const newRole = user.role === "admin" ? "user" : "admin";
-    const verb = newRole === "admin" ? "Promote" : "Demote";
-    if (!window.confirm(`${verb} "${user.username}" to ${newRole}?`)) return;
+    const confirmMessage =
+      newRole === "admin"
+        ? t('Promote "{{username}}" to admin?', { username: user.username })
+        : t('Demote "{{username}}" to user?', { username: user.username });
+    if (!window.confirm(confirmMessage)) return;
     setActionError("");
     try {
       await setUserRole(user.username, newRole);
@@ -143,17 +152,13 @@ export default function AdminUsersPage() {
         setExpandedUserId((current) => (current === user.id ? null : current));
       }
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : "Failed to update role");
+      setActionError(e instanceof Error ? e.message : t("Failed to update role"));
     }
   }
 
-  useEffect(() => {
-    if (!expandedUserId) return;
-    const expanded = users.find((user) => user.id === expandedUserId);
-    if (!expanded || expanded.role === "admin") {
-      setExpandedUserId(null);
-    }
-  }, [expandedUserId, users]);
+  const activeExpandedUserId =
+    users.find((user) => user.id === expandedUserId && user.role !== "admin")
+      ?.id ?? null;
 
   return (
     <div className="h-screen overflow-y-auto bg-[var(--background)] px-4 py-10 [scrollbar-gutter:stable]">
@@ -163,16 +168,16 @@ export default function AdminUsersPage() {
           <Link
             href="/"
             className="flex items-center gap-1.5 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
-          >
-            <ArrowLeft size={15} />
-            Back
+            >
+              <ArrowLeft size={15} />
+            {t("Back")}
           </Link>
           <div className="flex-1">
             <h1 className="text-xl font-semibold text-[var(--foreground)]">
-              User Management
+              {t("User Management")}
             </h1>
             <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">
-              Manage registered accounts
+              {t("Manage registered accounts")}
             </p>
           </div>
           <button
@@ -182,7 +187,7 @@ export default function AdminUsersPage() {
                        hover:bg-[var(--card)] transition-colors"
           >
             <UserPlus size={14} />
-            Add user
+            {t("Add user")}
           </button>
           <button
             onClick={load}
@@ -193,7 +198,7 @@ export default function AdminUsersPage() {
                        disabled:opacity-50 transition-colors"
           >
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-            Refresh
+            {t("Refresh")}
           </button>
         </div>
 
@@ -206,7 +211,7 @@ export default function AdminUsersPage() {
         <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-hidden shadow-sm">
           {loading ? (
             <div className="flex items-center justify-center py-16 text-[var(--muted-foreground)] text-sm">
-              Loading…
+              {t("Loading")}
             </div>
           ) : error ? (
             <div className="flex items-center justify-center py-16 text-red-500 text-sm">
@@ -214,16 +219,18 @@ export default function AdminUsersPage() {
             </div>
           ) : users.length === 0 ? (
             <div className="flex items-center justify-center py-16 text-[var(--muted-foreground)] text-sm">
-              No users found.
+              {t("No users found.")}
             </div>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--border)] text-left text-xs text-[var(--muted-foreground)] uppercase tracking-wider">
-                  <th className="px-5 py-3 font-medium">Username</th>
-                  <th className="px-5 py-3 font-medium">Role</th>
-                  <th className="px-5 py-3 font-medium">Joined</th>
-                  <th className="px-5 py-3 font-medium text-right">Actions</th>
+                  <th className="px-5 py-3 font-medium">{t("Username")}</th>
+                  <th className="px-5 py-3 font-medium">{t("Role")}</th>
+                  <th className="px-5 py-3 font-medium">{t("Joined")}</th>
+                  <th className="px-5 py-3 font-medium text-right">
+                    {t("Actions")}
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
@@ -238,7 +245,7 @@ export default function AdminUsersPage() {
                           {user.username}
                           {isSelf && (
                             <span className="ml-2 text-xs text-[var(--muted-foreground)]">
-                              (you)
+                              {t("(you)")}
                             </span>
                           )}
                         </td>
@@ -269,7 +276,7 @@ export default function AdminUsersPage() {
                                     current === user.id ? null : user.id,
                                   )
                                 }
-                                title="Manage assignments"
+                                title={t("Manage assignments")}
                                 className="rounded-lg p-1.5 text-[var(--muted-foreground)]
                                          hover:bg-[var(--background)] hover:text-[var(--foreground)]
                                          transition-colors"
@@ -282,10 +289,10 @@ export default function AdminUsersPage() {
                               disabled={isSelf}
                               title={
                                 isSelf
-                                  ? "Cannot change your own role"
+                                  ? t("Cannot change your own role")
                                   : user.role === "admin"
-                                    ? "Demote to user"
-                                    : "Promote to admin"
+                                    ? t("Demote to user")
+                                    : t("Promote to admin")
                               }
                               className="rounded-lg p-1.5 text-[var(--muted-foreground)]
                                        hover:bg-[var(--background)] hover:text-[var(--foreground)]
@@ -302,8 +309,10 @@ export default function AdminUsersPage() {
                               disabled={isSelf}
                               title={
                                 isSelf
-                                  ? "Cannot delete your own account"
-                                  : `Delete ${user.username}`
+                                  ? t("Cannot delete your own account")
+                                  : t("Delete {{username}}", {
+                                      username: user.username,
+                                    })
                               }
                               className="rounded-lg p-1.5 text-[var(--muted-foreground)]
                                        hover:bg-red-500/10 hover:text-red-500
@@ -314,7 +323,7 @@ export default function AdminUsersPage() {
                           </div>
                         </td>
                       </tr>
-                      {canManageAssignments && expandedUserId === user.id && (
+                      {canManageAssignments && activeExpandedUserId === user.id && (
                         <tr>
                           <td colSpan={4} className="p-0">
                             <GrantEditor userId={user.id} />
@@ -329,8 +338,8 @@ export default function AdminUsersPage() {
           )}
         </div>
 
-        <p className="mt-8 text-center text-xs text-[var(--muted-foreground)]">
-          DeepTutor Admin · User Management
+      <p className="mt-8 text-center text-xs text-[var(--muted-foreground)]">
+          {t("DeepTutor Admin · User Management")}
         </p>
       </div>
 
@@ -348,21 +357,21 @@ export default function AdminUsersPage() {
           >
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-base font-semibold text-[var(--foreground)]">
-                Add user
+                {t("Add user")}
               </h2>
               <button
                 type="button"
                 onClick={closeCreateDialog}
                 disabled={createSubmitting}
                 className="rounded-md p-1 text-[var(--muted-foreground)] hover:bg-[var(--background)] hover:text-[var(--foreground)] disabled:opacity-40"
-                aria-label="Close"
+                aria-label={t("Close")}
               >
                 <X size={16} />
               </button>
             </div>
 
             <label className="mb-3 block text-xs text-[var(--muted-foreground)]">
-              Username (or email)
+              {t("Username (or email)")}
               <input
                 type="text"
                 value={createUsername}
@@ -375,7 +384,7 @@ export default function AdminUsersPage() {
             </label>
 
             <label className="mb-4 block text-xs text-[var(--muted-foreground)]">
-              Password (≥ 8 chars)
+              {t("Password (>= 8 chars)")}
               <input
                 type="password"
                 value={createPassword}
@@ -397,14 +406,14 @@ export default function AdminUsersPage() {
                 disabled={createSubmitting}
                 className="rounded-lg px-3 py-1.5 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] disabled:opacity-40"
               >
-                Cancel
+                {t("Cancel")}
               </button>
               <button
                 type="submit"
                 disabled={createSubmitting}
                 className="rounded-lg bg-[var(--foreground)] px-3 py-1.5 text-sm font-medium text-[var(--background)] hover:opacity-90 disabled:opacity-40"
               >
-                {createSubmitting ? "Creating…" : "Create"}
+                {createSubmitting ? t("Creating...") : t("Create")}
               </button>
             </div>
           </form>

@@ -812,9 +812,11 @@ export function CallTracePanel({
                     className="shrink-0 transition-transform group-open/step:rotate-180"
                   />
                   <Sparkles size={12} strokeWidth={1.6} className="shrink-0" />
-                  <span>Step {item.stepId}</span>
+                  <span>
+                    {t("Step")} {item.stepId}
+                  </span>
                   <span className="text-[11px] opacity-60">
-                    {roundCount} {roundCount === 1 ? "round" : "rounds"}
+                    {roundCount} {roundCount === 1 ? t("round") : t("rounds")}
                     {stepDuration ? ` · ${stepDuration}` : ""}
                   </span>
                   {isActiveStep && (
@@ -862,7 +864,7 @@ export function CallTracePanel({
                           )}
                           <div className="mb-1 flex items-center gap-1.5 not-italic text-[11px]">
                             <span className="font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
-                              Round {roundNum}
+                              {t("Round")} {roundNum}
                             </span>
                             {duration && (
                               <span className="font-normal text-[var(--muted-foreground)]/40">

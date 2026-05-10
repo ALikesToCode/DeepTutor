@@ -405,7 +405,10 @@ export default function SimpleMarkdownRenderer({
         </a>
       );
     },
-    img: ({ node, src, alt, ...props }: any) => (
+    img: ({ src, alt, ...props }: any) => (
+      // Markdown image URLs are user/model-authored and cannot be declared in
+      // Next image remotePatterns ahead of time.
+      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={src}
         alt={alt || ""}

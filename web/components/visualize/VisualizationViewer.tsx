@@ -28,7 +28,6 @@ function ChartJsRenderer({ config }: { config: string }) {
           chartRef.current = null;
         }
 
-        // eslint-disable-next-line no-new-func
         const parsedConfig = new Function(
           `"use strict"; return (${config});`,
         )();
@@ -78,6 +77,7 @@ function ChartJsRenderer({ config }: { config: string }) {
 }
 
 function HtmlRenderer({ html }: { html: string }) {
+  const { t } = useTranslation();
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const prepared = useMemo(() => prepareIframeHtml(html || ""), [html]);
@@ -106,14 +106,14 @@ function HtmlRenderer({ html }: { html: string }) {
         type="button"
         onClick={handleOpenInNewTab}
         className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--background)]/90 px-2 py-1 text-[10px] font-medium text-[var(--muted-foreground)] backdrop-blur transition-colors hover:text-[var(--foreground)]"
-        title="Open in new tab"
+        title={t("Open in new tab")}
       >
         <ExternalLink size={10} strokeWidth={1.8} />
-        Open
+        {t("Open")}
       </button>
       <iframe
         ref={iframeRef}
-        title="HTML visualization"
+        title={t("HTML visualization")}
         sandbox="allow-scripts"
         className="w-full rounded-lg border border-[var(--border)] bg-white"
         style={{ minHeight: 480, height: 560 }}
@@ -125,16 +125,16 @@ function HtmlRenderer({ html }: { html: string }) {
 function SvgRenderer({ svg }: { svg: string }) {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
-  const [error, setError] = useState<string | null>(null);
 
-  const sanitizedSvg = useMemo(() => {
+  const { sanitizedSvg, error } = useMemo(() => {
     const trimmed = svg.trim();
     if (!trimmed.startsWith("<svg")) {
-      setError(t("Invalid SVG: does not start with <svg"));
-      return "";
+      return {
+        sanitizedSvg: "",
+        error: t("Invalid SVG: does not start with <svg"),
+      };
     }
-    setError(null);
-    return trimmed;
+    return { sanitizedSvg: trimmed, error: null };
   }, [svg, t]);
 
   if (error) {

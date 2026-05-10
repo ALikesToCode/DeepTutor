@@ -35,7 +35,6 @@ export default function KbFilesTab({ kb, task }: KbFilesTabProps) {
   const [refreshKey, setRefreshKey] = useState(0);
   useEffect(() => {
     if (!taskExecuting) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRefreshKey((n) => n + 1);
     }
   }, [taskExecuting]);

@@ -549,16 +549,22 @@ export default function RichMarkdownRenderer({
         </a>
       );
     },
-    img: ({ node, src, alt, ...props }: any) => (
-      <img
-        src={src}
-        alt={alt || ""}
-        loading="lazy"
-        className={`${gap} inline-block max-w-full rounded-lg border border-[var(--border)]`}
-        {...lineAttr(node)}
-        {...props}
-      />
-    ),
+    img: ({ node, src, alt, ...props }: any) => {
+      const lineProps = lineAttr(node);
+      return (
+        // Markdown image URLs are user/model-authored and cannot be declared in
+        // Next image remotePatterns ahead of time.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt={alt || ""}
+          loading="lazy"
+          className={`${gap} inline-block max-w-full rounded-lg border border-[var(--border)]`}
+          {...lineProps}
+          {...props}
+        />
+      );
+    },
     blockquote: ({ node, ...props }: any) => (
       <blockquote
         className={`${gap} border-l-[3px] border-[var(--muted-foreground)] pl-4 italic text-[var(--muted-foreground)] [&>p]:mb-1`}

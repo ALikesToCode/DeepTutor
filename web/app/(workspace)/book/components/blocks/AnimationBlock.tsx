@@ -62,6 +62,8 @@ export default function AnimationBlock({ block }: AnimationBlockProps) {
             className="aspect-video h-auto w-full object-contain"
           />
         ) : (
+          /* Generated animation artifacts may be local, remote, or blob URLs. */
+          /* eslint-disable-next-line @next/next/no-img-element */
           <img
             src={primary}
             alt={description || t("Animation frame")}

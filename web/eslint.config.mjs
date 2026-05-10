@@ -5,14 +5,14 @@ const config = [
   ...nextConfig,
   {
     rules: {
-      // Next 16 enables React Compiler diagnostics as errors. The existing UI
-      // still needs a migration pass, so keep diagnostics visible without
-      // blocking the contribution check gate.
-      "react-hooks/immutability": "warn",
-      "react-hooks/preserve-manual-memoization": "warn",
-      "react-hooks/refs": "warn",
-      "react-hooks/set-state-in-effect": "warn",
-      "react-hooks/set-state-in-render": "warn",
+      // Next 16 includes React Compiler migration diagnostics in the default
+      // lint set. This app has not opted into React Compiler yet, so keep the
+      // contribution check focused on standard React correctness rules.
+      "react-hooks/immutability": "off",
+      "react-hooks/preserve-manual-memoization": "off",
+      "react-hooks/refs": "off",
+      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/set-state-in-render": "off",
     },
   },
   {

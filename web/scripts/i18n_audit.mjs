@@ -21,6 +21,13 @@ function hasUiText(s) {
   return /[A-Za-z\u4e00-\u9fff]/.test(s);
 }
 
+const NON_UI_TEXT_SNIPPETS = new Set([
+  "void | Promise",
+  "Promise",
+  'div]:mb-0">',
+  "context. Next.js",
+]);
+
 function auditFile(content) {
   const findings = [];
 
@@ -30,6 +37,7 @@ function auditFile(content) {
   for (const m of content.matchAll(jsxTextRe)) {
     const text = String(m[1] || "").trim();
     if (!text) continue;
+    if (NON_UI_TEXT_SNIPPETS.has(text)) continue;
     // Heuristics to avoid false positives (code / comments / long blocks)
     if (text.includes("\n") || text.includes("\r")) continue;
     if (text.length > 120) continue;

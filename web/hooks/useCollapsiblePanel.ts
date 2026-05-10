@@ -21,7 +21,6 @@ export function useCollapsiblePanel(
         `panel:${storageKey}:collapsed`,
       );
       if (stored != null) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setCollapsedState(stored === "1");
       }
     } catch {

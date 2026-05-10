@@ -208,6 +208,9 @@ const fieldControlClass =
   "w-full rounded-lg border border-[var(--border)] px-3 py-2 text-[14px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--ring)]";
 
 const inputClass = `${fieldControlClass} bg-transparent placeholder:text-[var(--muted-foreground)]/40`;
+const API_KEY_PLACEHOLDER = "sk-...";
+const PROXY_URL_PLACEHOLDER = "http://127.0.0.1:7890 (optional)";
+const MODEL_PLACEHOLDER = "gpt-4o";
 
 const nativeSelectClass = `${fieldControlClass} bg-[var(--background)] cursor-pointer disabled:cursor-not-allowed disabled:opacity-60`;
 
@@ -1571,7 +1574,7 @@ function SettingsPageContent() {
                               onChange={(e) =>
                                 updateProfileField("api_key", e.target.value)
                               }
-                              placeholder="sk-..."
+                              placeholder={API_KEY_PLACEHOLDER}
                             />
                             <button
                               type="button"
@@ -1620,7 +1623,7 @@ function SettingsPageContent() {
                               onChange={(e) =>
                                 updateProfileField("proxy", e.target.value)
                               }
-                              placeholder="http://127.0.0.1:7890 (optional)"
+                              placeholder={PROXY_URL_PLACEHOLDER}
                             />
                           </div>
                         ) : (
@@ -1716,7 +1719,7 @@ function SettingsPageContent() {
                                 onChange={(e) =>
                                   updateModelField("model", e.target.value)
                                 }
-                                placeholder="gpt-4o"
+                                placeholder={MODEL_PLACEHOLDER}
                               />
                             </div>
                             {activeService === "llm" && (

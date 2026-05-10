@@ -60,9 +60,9 @@ export default function ResearchOutlineEditor({
     : items;
 
   const statusLabel = (() => {
-    if (externalStatus === "done") return "Research Complete";
+    if (externalStatus === "done") return t("Research Complete");
     if (externalStatus === "researching" || localConfirmed)
-      return "Researching…";
+      return t("Researching...");
     return null;
   })();
 
@@ -85,12 +85,13 @@ export default function ResearchOutlineEditor({
             </span>
           )}
         </div>
-        {!locked && (
-          <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)]/60">
-            Review and edit the sub-topics below, then start the research. You
-            can also type in the chat to regenerate the outline.
-          </p>
-        )}
+          {!locked && (
+            <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)]/60">
+              {t(
+                "Review and edit the sub-topics below, then start the research. You can also type in the chat to regenerate the outline.",
+              )}
+            </p>
+          )}
       </div>
 
       <div className="space-y-0 divide-y divide-[var(--border)]/15">

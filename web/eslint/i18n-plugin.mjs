@@ -11,7 +11,7 @@ function hasHumanText(s) {
   return /[A-Za-z\u4e00-\u9fff]/.test(s);
 }
 
-export default {
+const i18nPlugin = {
   rules: {
     "no-literal-ui-text": {
       meta: {
@@ -55,3 +55,5 @@ export default {
     },
   },
 };
+
+export default i18nPlugin;

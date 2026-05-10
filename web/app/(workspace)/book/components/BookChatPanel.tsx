@@ -130,9 +130,10 @@ export default function BookChatPanel({
   }, [width]);
 
   useEffect(() => {
+    const retryTimers = retryTimersRef.current;
     return () => {
-      retryTimersRef.current.forEach((timer) => clearTimeout(timer));
-      retryTimersRef.current.clear();
+      retryTimers.forEach((timer) => clearTimeout(timer));
+      retryTimers.clear();
       clientRef.current?.disconnect();
       clientRef.current = null;
     };

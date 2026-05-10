@@ -17,7 +17,6 @@ const KATEX_RESOURCES = [
     "/script>",
 ].join("\n  ");
 
-// eslint-disable-next-line no-template-curly-in-string
 const KATEX_INIT_SCRIPT =
   "<script data-katex-init>" +
   'document.addEventListener("DOMContentLoaded",function(){var t=0,i=setInterval(function(){if(typeof renderMathInElement==="function"){clearInterval(i);try{renderMathInElement(document.body,{delimiters:[{left:"$$",right:"$$",display:true},{left:"$",right:"$",display:false},{left:"\\\\(",right:"\\\\)",display:false},{left:"\\\\[",right:"\\\\]",display:true}],throwOnError:false})}catch(e){console.error("[KaTeX] Error:",e)}}else if(++t>50){clearInterval(i);console.warn("[KaTeX] Timeout")}},100)});' +

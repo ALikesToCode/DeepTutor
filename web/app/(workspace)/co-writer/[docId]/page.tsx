@@ -78,6 +78,7 @@ interface KnowledgeBase {
 }
 
 const SPLIT_RATIO_KEY = "deeptutor.co_writer.split_ratio";
+const MARKDOWN_BADGES = ["GFM", "KaTeX", "Mermaid"] as const;
 const SYNC_SCROLL_KEY = "deeptutor.co_writer.sync_scroll";
 const LOCAL_DRAFT_PREFIX = "deeptutor.co_writer.draft.";
 const AUTOSAVE_DEBOUNCE_MS = 1500;
@@ -1206,7 +1207,7 @@ export default function CoWriterPage() {
         id: "math",
         icon: () => (
           <span className="text-[11px] font-semibold leading-none">
-            &Sigma;
+            {"\u03a3"}
           </span>
         ),
         title: "Math Block",
@@ -1844,11 +1845,14 @@ export default function CoWriterPage() {
             className="mx-0.5 h-3 w-px bg-[var(--border)]"
             aria-hidden="true"
           />
-          <span className="rounded bg-[var(--muted)] px-1.5 py-0.5">GFM</span>
-          <span className="rounded bg-[var(--muted)] px-1.5 py-0.5">KaTeX</span>
-          <span className="rounded bg-[var(--muted)] px-1.5 py-0.5">
-            Mermaid
-          </span>
+          {MARKDOWN_BADGES.map((badge) => (
+            <span
+              key={badge}
+              className="rounded bg-[var(--muted)] px-1.5 py-0.5"
+            >
+              {badge}
+            </span>
+          ))}
         </div>
       </div>
 
