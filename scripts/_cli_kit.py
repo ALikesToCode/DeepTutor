@@ -189,7 +189,12 @@ def select(prompt: str, options: list[tuple[str, str, str]]) -> str:
 
     rendered_lines = 0  # how many lines the last _render() emitted
 
-    def _render() -> int:
+    def _shorten(text: str, width: int) -> str:
+        if len(text) <= width:
+            return text
+        return textwrap.shorten(text, width=max(width, 5), placeholder="...")
+
+    def _render() -> None:
         nonlocal rendered_lines
         if use_window:
             half = window_size // 2
@@ -199,27 +204,32 @@ def select(prompt: str, options: list[tuple[str, str, str]]) -> str:
             start, end = 0, total
 
         lines = 0
+        width = term_width()
+        option_width = max(width - 4, 5)
         if use_window and start > 0:
-            print(f"  {dim('  ↑ ' + str(start) + ' more above')}")
+            hint = _shorten("  ↑ " + str(start) + " more above", option_width)
+            print(f"  {dim(hint)}")
             lines += 1
 
         for i in range(start, end):
             _, label, desc = options[i]
+            raw_text = f"{label}  {desc}" if desc else label
+            text = _shorten(raw_text, option_width)
             if i == idx:
                 marker = accent("> ")
-                text = f"{bold(label)}  {dim(desc)}" if desc else bold(label)
+                text = bold(text)
             else:
                 marker = "  "
-                text = dim(f"{label}  {desc}") if desc else dim(label)
+                text = dim(text)
             print(f"  {marker}{text}")
             lines += 1
 
         if use_window and end < total:
-            print(f"  {dim('  ↓ ' + str(total - end) + ' more below')}")
+            hint = _shorten("  ↓ " + str(total - end) + " more below", option_width)
+            print(f"  {dim(hint)}")
             lines += 1
 
         rendered_lines = lines
-        return lines
 
     _render()
 
@@ -234,7 +244,8 @@ def select(prompt: str, options: list[tuple[str, str, str]]) -> str:
             sys.stdout.write("\033[J")
             chosen_label = options[idx][1]
             chosen_desc = options[idx][2]
-            print(f"  {accent('>')} {bold(chosen_label)}  {dim(chosen_desc)}")
+            chosen = _shorten(f"{chosen_label}  {chosen_desc}" if chosen_desc else chosen_label, max(term_width() - 4, 5))
+            print(f"  {accent('>')} {bold(chosen)}")
             print()
             return options[idx][0]
         elif key == "esc":

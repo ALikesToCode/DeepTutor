@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 from typing import Sequence
@@ -329,12 +330,19 @@ def ensure_safe_to_update(gap: BranchGap) -> None:
         raise UpdateError("This branch cannot be updated with a safe fast-forward pull.")
 
 
+def backend_dependency_hint() -> str:
+    if shutil.which("uv"):
+        return 'Backend dependencies changed: consider running uv pip install -e ".[server]"'
+    return 'Backend dependencies changed: consider running python -m pip install -e ".[server]"'
+
+
 def dependency_hints(changed_files: list[str]) -> list[str]:
     hints: list[str] = []
-    if any(path == "pyproject.toml" or path.startswith("requirements/") for path in changed_files):
-        hints.append(
-            'Backend dependencies changed: consider running python -m pip install -e ".[server]"'
-        )
+    if any(
+        path == "pyproject.toml" or path.startswith("requirements/")
+        for path in changed_files
+    ):
+        hints.append(backend_dependency_hint())
     if any(
         path in {"web/package.json", "web/package-lock.json", "web/pnpm-lock.yaml"}
         or path == "web/yarn.lock"

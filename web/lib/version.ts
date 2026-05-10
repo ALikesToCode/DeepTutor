@@ -62,15 +62,7 @@ export function parseBuild(
     };
   }
 
-  return {
-    tag: null,
-    isDev: true,
-    isDirty,
-    display: "dev",
-    raw,
-    commitsAhead: null,
-    commit: null,
-  };
+  return null;
 }
 
 export function normalizeVersionTag(

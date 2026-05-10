@@ -11,10 +11,13 @@ function roleHeading(role: MessageItem["role"]): string {
 
 function formatAttachments(attachments?: MessageAttachment[]): string {
   if (!attachments?.length) return "";
+  const inlineCode = (value: string): string => `\`${value.replace(/`/g, "'")}\``;
   const items = attachments
     .map((a) => {
       const name = a.filename || a.type || "attachment";
-      return a.mime_type ? `\`${name}\` (${a.mime_type})` : `\`${name}\``;
+      return a.mime_type
+        ? `${inlineCode(name)} (${inlineCode(a.mime_type)})`
+        : inlineCode(name);
     })
     .join(", ");
   return `_Attachments:_ ${items}\n\n`;

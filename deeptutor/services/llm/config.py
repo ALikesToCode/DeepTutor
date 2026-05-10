@@ -71,6 +71,13 @@ def _set_openai_env_vars(api_key: str | None, base_url: str | None, *, source: s
         logger.debug("Set OPENAI_BASE_URL env var to %s (%s)", clean_url, source)
 
 
+def _provider_env_api_key(binding: str | None) -> str:
+    spec = find_by_name(binding)
+    if not spec or not spec.env_key:
+        return ""
+    return get_env_store().get(spec.env_key, "").strip()
+
+
 def _setup_openai_env_vars_early() -> None:
     """
     Set OPENAI_* environment variables early for OpenAI-compatible SDKs.
@@ -81,7 +88,7 @@ def _setup_openai_env_vars_early() -> None:
     """
     env_store = get_env_store()
     binding = env_store.get("LLM_BINDING", "openai")
-    api_key = env_store.get("LLM_API_KEY", "")
+    api_key = env_store.get("LLM_API_KEY", "") or _provider_env_api_key(binding)
     base_url = env_store.get("LLM_HOST", "")
 
     if _is_openai_compatible_binding(binding):
@@ -322,17 +329,30 @@ def uses_max_completion_tokens(model: str) -> bool:
     return False
 
 
-def get_token_limit_kwargs(model: str, max_tokens: int) -> dict[str, int]:
+def get_token_limit_kwargs(
+    model: str,
+    max_tokens: int,
+    provider_name: str | None = None,
+    binding: str | None = None,
+) -> dict[str, int]:
     """
     Get the appropriate token limit parameter for the model.
 
     Args:
         model: The model name
         max_tokens: The desired token limit
+        provider_name: Optional resolved provider name.
+        binding: Optional provider binding alias.
 
     Returns:
         Dictionary with either {"max_tokens": value} or {"max_completion_tokens": value}
     """
+    provider = find_by_name(provider_name or binding)
+    if provider is not None:
+        if provider.supports_max_completion_tokens and uses_max_completion_tokens(model):
+            return {"max_completion_tokens": max_tokens}
+        return {"max_tokens": max_tokens}
+
     if uses_max_completion_tokens(model):
         return {"max_completion_tokens": max_tokens}
     return {"max_tokens": max_tokens}

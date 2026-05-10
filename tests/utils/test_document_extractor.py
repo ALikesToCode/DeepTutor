@@ -81,6 +81,7 @@ class TestIsDocumentExtension:
     def test_text_and_code(self) -> None:
         # Any extension in FileTypeRouter.TEXT_EXTENSIONS should be supported.
         assert is_document_extension("notes.txt")
+        assert is_document_extension(".env")
         assert is_document_extension("readme.md")
         assert is_document_extension("module.py")
         assert is_document_extension("config.yaml")
@@ -197,6 +198,10 @@ class TestExtractTextLike:
         text = extract_text_from_bytes("doc.md", b"# Heading\n\nBody.\n")
         assert "# Heading" in text
 
+    def test_dotfile_text(self) -> None:
+        text = extract_text_from_bytes(".env", b"LLM_BINDING=navy\n")
+        assert "LLM_BINDING=navy" in text
+
     def test_utf8_with_bom(self) -> None:
         # The candidate chain has utf-8 before utf-8-sig (same order as KB
         # pipeline), so BOM-prefixed bytes decode as utf-8 and the BOM is
@@ -268,6 +273,10 @@ class TestFailureModes:
     def test_ooxml_magic_mismatch(self) -> None:
         with pytest.raises(CorruptDocumentError):
             extract_text_from_bytes("foo.docx", b"not an office file")
+
+    def test_binary_payload_renamed_as_text_is_rejected(self) -> None:
+        with pytest.raises(CorruptDocumentError):
+            extract_text_from_bytes("foo.txt", b"\x00\x01\x02PNG\r\n\x1a\n")
 
     def test_corrupt_docx(self) -> None:
         # OOXML header but garbage body

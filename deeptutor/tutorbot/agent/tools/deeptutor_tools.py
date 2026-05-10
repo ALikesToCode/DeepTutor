@@ -274,3 +274,87 @@ class PaperSearchAdapterTool(Tool):
             lines.append(f"Abstract: {p.get('abstract', '')[:400]}")
             lines.append("")
         return "\n".join(lines)
+
+
+class MediaGenerationAdapterTool(Tool):
+    @property
+    def name(self) -> str:
+        return "media_generation"
+
+    @property
+    def description(self) -> str:
+        return (
+            "Generate or poll NavyAI image/video assets for notes, infographics, "
+            "slide visuals, diagrams, and short teaching clips."
+        )
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "prompt": {
+                    "type": "string",
+                    "description": "Detailed visual prompt for the learning asset.",
+                },
+                "output_type": {
+                    "type": "string",
+                    "enum": ["image", "video"],
+                    "description": "Generate an image or video.",
+                },
+                "purpose": {
+                    "type": "string",
+                    "enum": ["general", "notes", "infographic", "slides"],
+                    "description": "Learning asset type.",
+                },
+                "model": {
+                    "type": "string",
+                    "description": "Optional NavyAI image/video model ID.",
+                },
+                "aspect_ratio": {
+                    "type": "string",
+                    "description": "Aspect ratio such as 16:9.",
+                },
+                "seconds": {
+                    "type": "number",
+                    "description": "Video duration from 0 to 10 seconds.",
+                },
+                "job_id": {
+                    "type": "string",
+                    "description": "Existing NavyAI async job ID to poll.",
+                },
+                "poll": {
+                    "type": "boolean",
+                    "description": "Poll an async job until completion.",
+                },
+            },
+            "required": [],
+        }
+
+    async def execute(self, **kwargs: Any) -> str:
+        from deeptutor.tools.media_generation import generate_media
+
+        result = await generate_media(
+            prompt=str(kwargs.get("prompt") or ""),
+            output_type=str(kwargs.get("output_type") or "image"),
+            purpose=str(kwargs.get("purpose") or "general"),
+            model=kwargs.get("model"),
+            aspect_ratio=kwargs.get("aspect_ratio"),
+            seconds=kwargs.get("seconds"),
+            job_id=kwargs.get("job_id"),
+            poll=kwargs.get("poll"),
+        )
+        assets = result.get("assets") or []
+        lines = [f"NavyAI media status: {result.get('status', 'unknown')}"]
+        if result.get("model"):
+            lines.append(f"Model: {result['model']}")
+        if result.get("job_id"):
+            lines.append(f"Job ID: {result['job_id']}")
+        for asset in assets:
+            location = asset.get("url") or asset.get("path")
+            if location:
+                media_type = asset.get("type", result.get("output_type", "media"))
+                lines.append(f"- {media_type}: {location}")
+        if not assets and result.get("job_id"):
+            lines.append("No final asset yet. Poll the job ID later to retrieve the result.")
+        return "\n".join(lines)

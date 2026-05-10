@@ -307,6 +307,9 @@ if [ -z "$LLM_MODEL" ]; then
 fi
 
 # Initialize user data directories if empty
+echo "☁️  Restoring Cloudflare R2 state snapshot when configured..."
+python /app/scripts/cloudflare_r2_state_sync.py hydrate || echo "   ⚠️ R2 state hydrate failed; continuing with local cache"
+
 echo "📁 Checking data directories..."
 echo "   Ensuring runtime settings and workspace layout..."
 python -c "
@@ -322,8 +325,36 @@ echo "   - data/user/settings/main.yaml"
 echo "   - data/user/settings/agents.yaml"
 echo "============================================"
 
-# Start supervisord
-exec /usr/bin/supervisord -c /etc/supervisor/conf.d/deeptutor.conf
+python /app/scripts/cloudflare_r2_state_sync.py loop &
+R2_SYNC_PID=$!
+python /app/scripts/cloudflare_r2_state_sync.py snapshot &
+R2_INITIAL_SYNC_PID=$!
+
+# Start both services directly. If either one exits, stop the container so the
+# platform reports a real startup failure instead of a running process with no ports.
+/bin/bash /app/start-backend.sh &
+BACKEND_PID=$!
+
+/bin/bash /app/start-frontend.sh &
+FRONTEND_PID=$!
+
+cleanup() {
+    kill "${BACKEND_PID}" "${FRONTEND_PID}" 2>/dev/null || true
+    wait "${BACKEND_PID}" "${FRONTEND_PID}" 2>/dev/null || true
+    kill "${R2_INITIAL_SYNC_PID}" 2>/dev/null || true
+    wait "${R2_INITIAL_SYNC_PID}" 2>/dev/null || true
+    kill "${R2_SYNC_PID}" 2>/dev/null || true
+    wait "${R2_SYNC_PID}" 2>/dev/null || true
+    python /app/scripts/cloudflare_r2_state_sync.py snapshot || true
+}
+
+trap cleanup INT TERM
+
+wait -n "${BACKEND_PID}" "${FRONTEND_PID}"
+EXIT_CODE=$?
+echo "A DeepTutor service exited with status ${EXIT_CODE}; shutting down container."
+cleanup
+exit "${EXIT_CODE}"
 EOF
 
 RUN sed -i 's/\r$//' /app/entrypoint.sh && chmod +x /app/entrypoint.sh
@@ -336,7 +367,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:${BACKEND_PORT:-8001}/ || exit 1
 
 # Set entrypoint
-ENTRYPOINT ["/app/entrypoint.sh"]
+ENTRYPOINT ["/bin/bash", "/app/entrypoint.sh"]
 
 # ============================================
 # Stage 4: Development Image (Optional)
@@ -398,3 +429,11 @@ RUN sed -i 's/\r$//' /etc/supervisor/conf.d/deeptutor.conf
 
 # Development ports
 EXPOSE 8001 3782
+
+# ============================================
+# Stage 5: Default Cloud Image
+# ============================================
+# Wrangler builds the Dockerfile path directly and does not pass --target, so
+# keep the default final stage on the production image while preserving the
+# explicit development target above for local development workflows.
+FROM production AS cloudflare

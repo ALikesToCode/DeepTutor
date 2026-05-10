@@ -122,3 +122,18 @@ def test_dependency_hints_cover_backend_and_frontend_manifests() -> None:
     assert len(hints) == 2
     assert "Backend dependencies changed" in hints[0]
     assert "Frontend dependencies changed" in hints[1]
+
+
+def test_dependency_hints_prefer_uv_when_available(monkeypatch) -> None:
+    update = _load_update_module()
+    monkeypatch.setattr(
+        update.shutil,
+        "which",
+        lambda name: "/usr/bin/uv" if name == "uv" else None,
+    )
+
+    hints = update.dependency_hints(["requirements/server.txt"])
+
+    assert hints == [
+        'Backend dependencies changed: consider running uv pip install -e ".[server]"'
+    ]

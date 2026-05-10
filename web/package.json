@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "check": "pnpm run lint && pnpm exec tsc --noEmit && pnpm run test:node && pnpm run i18n:check",
     "dev": "node --max-old-space-size=4096 ./node_modules/next/dist/bin/next dev",
     "dev:turbo": "node --max-old-space-size=6144 ./node_modules/next/dist/bin/next dev --turbopack",
     "build": "next build",

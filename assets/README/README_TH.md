@@ -480,6 +480,17 @@ Directory เหล่านี้จะอยู่หลังจาก `docke
 
 ```bash
 pip install -e ".[cli]"
+```
+
+คุณยังต้องตั้งค่าผู้ให้บริการ LLM วิธีที่เร็วที่สุด:
+
+```bash
+cp .env.example .env   # แล้วแก้ไข .env เพื่อกรอก API key ของคุณ
+```
+
+เมื่อตั้งค่าแล้วพร้อมใช้งาน:
+
+```bash
 deeptutor chat                                   # Interactive REPL
 deeptutor run chat "Explain Fourier transform"   # เรียกใช้ capability แบบ one-shot
 deeptutor run deep_solve "Solve x^2 = 4"         # แก้ปัญหาแบบหลายเอเจนต์

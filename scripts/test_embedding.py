@@ -71,7 +71,10 @@ async def run_direct_test(text: str) -> None:
         "model": cfg.model,
         "encoding_format": "float",
     }
-    if cfg.dim:
+    should_send_dimensions = cfg.send_dimensions
+    if should_send_dimensions is None:
+        should_send_dimensions = cfg.model.startswith("text-embedding-3")
+    if cfg.dim and should_send_dimensions:
         payload["dimensions"] = cfg.dim
 
     print(f"[DirectTest] POST {url}")
@@ -109,6 +112,7 @@ async def main() -> None:
         print(f"  host={cfg.base_url}")
         print(f"  model={cfg.model}")
         print(f"  dim={cfg.dim}")
+        print(f"  send_dimensions={cfg.send_dimensions}")
         print(f"  timeout={cfg.request_timeout}")
         print(f"  batch_size={cfg.batch_size}")
         print(f"  api_key={_mask_key(cfg.api_key)}")

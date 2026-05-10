@@ -1287,6 +1287,8 @@ class AgenticChatPipeline:
                     kwargs["query"] = fallback_query
             kwargs["kb_name"] = selected_kbs[0] if selected_kbs else ""
             kwargs.setdefault("mode", "hybrid")
+            if not str(kwargs.get("query") or "").strip():
+                kwargs["query"] = context.user_message
         elif tool_name == "code_execution":
             kwargs.setdefault("intent", context.user_message)
             kwargs.setdefault("timeout", 30)

@@ -41,6 +41,7 @@ test("classifyFile: doc via extension fallback when MIME empty", () => {
 
 test("classifyFile: accepts text & code", () => {
   assert.equal(classifyFile(makeFile("notes.txt", "text/plain")), "doc");
+  assert.equal(classifyFile(makeFile(".env", "text/plain")), "doc");
   assert.equal(classifyFile(makeFile("README.md", "text/markdown")), "doc");
   assert.equal(classifyFile(makeFile("main.py", "text/x-python")), "doc");
   // Empty MIME (common for code files) still accepted via extension
@@ -75,6 +76,7 @@ test("classifyFile: rejects unsupported", () => {
     null,
   );
   assert.equal(classifyFile(makeFile("noext")), null);
+  assert.equal(classifyFile(makeFile("README", "text/plain")), null);
 });
 
 // formatBytes ----------------------------------------------------------------

@@ -78,6 +78,7 @@ def _empty_env(tmp_path: Path) -> EnvStore:
                 "SEARXNG_BASE_URL=",
                 "PERPLEXITY_API_KEY=",
                 "SERPER_API_KEY=",
+                "NAVY_API_KEY=",
             ]
         )
         + "\n",
@@ -123,6 +124,78 @@ def test_llm_api_key_prefix_gateway(tmp_path: Path) -> None:
     assert resolved.provider_name == "openrouter"
     assert resolved.provider_mode == "gateway"
     assert resolved.effective_url == "https://openrouter.ai/api/v1"
+
+
+def test_llm_navy_explicit_binding_uses_gateway_defaults(tmp_path: Path) -> None:
+    catalog = _build_catalog(
+        llm_profile={
+            "id": "llm-p",
+            "name": "LLM",
+            "binding": "navy",
+            "base_url": "",
+            "api_key": "sk-navy-test-key",
+            "api_version": "",
+            "extra_headers": {},
+            "models": [{"id": "llm-m", "name": "m", "model": "gpt-5.4-mini"}],
+        }
+    )
+    resolved = resolve_llm_runtime_config(catalog=catalog, env_store=_empty_env(tmp_path))
+    assert resolved.provider_name == "navy"
+    assert resolved.provider_mode == "gateway"
+    assert resolved.effective_url == "https://api.navy/v1"
+    assert resolved.api_key == "sk-navy-test-key"
+
+
+def test_llm_navy_detected_from_openai_binding_key_prefix(tmp_path: Path) -> None:
+    catalog = _build_catalog(
+        llm_profile={
+            "id": "llm-p",
+            "name": "LLM",
+            "binding": "openai",
+            "base_url": "",
+            "api_key": "sk-navy-test-key",
+            "api_version": "",
+            "extra_headers": {},
+            "models": [{"id": "llm-m", "name": "m", "model": "gpt-5.4-mini"}],
+        }
+    )
+    resolved = resolve_llm_runtime_config(catalog=catalog, env_store=_empty_env(tmp_path))
+    assert resolved.provider_name == "navy"
+    assert resolved.provider_mode == "gateway"
+    assert resolved.effective_url == "https://api.navy/v1"
+
+
+def test_llm_navy_provider_env_key_fallback(tmp_path: Path) -> None:
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        "\n".join(
+            [
+                "LLM_BINDING=",
+                "LLM_MODEL=",
+                "LLM_API_KEY=",
+                "LLM_HOST=",
+                "LLM_API_VERSION=",
+                "NAVY_API_KEY=sk-navy-env-key",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    catalog = _build_catalog(
+        llm_profile={
+            "id": "llm-p",
+            "name": "LLM",
+            "binding": "navy",
+            "base_url": "",
+            "api_key": "",
+            "api_version": "",
+            "extra_headers": {},
+            "models": [{"id": "llm-m", "name": "m", "model": "gpt-5.4-mini"}],
+        }
+    )
+    resolved = resolve_llm_runtime_config(catalog=catalog, env_store=EnvStore(path=env_path))
+    assert resolved.provider_name == "navy"
+    assert resolved.api_key == "sk-navy-env-key"
 
 
 def test_llm_api_base_keyword_gateway(tmp_path: Path) -> None:

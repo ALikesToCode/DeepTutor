@@ -21,6 +21,7 @@ from deeptutor.services.rag.factory import DEFAULT_PROVIDER, normalize_provider_
 from deeptutor.services.rag.file_routing import FileTypeRouter
 
 logger = logging.getLogger(__name__)
+STALE_FINISHED_PROGRESS_SECONDS = 300
 
 
 # Cross-platform file locking
@@ -640,6 +641,57 @@ class KnowledgeBaseManager:
             fields["embedding_mismatch"] = True
         return fields
 
+    @staticmethod
+    def _read_progress_snapshot(kb_dir: Path) -> dict | None:
+        progress_file = kb_dir / ".progress.json"
+        if not progress_file.exists():
+            return None
+        try:
+            with open(progress_file, encoding="utf-8") as handle:
+                progress = json.load(handle)
+        except Exception as exc:
+            logger.debug(f"Failed to read progress snapshot for '{kb_dir.name}': {exc}")
+            return None
+        return progress if isinstance(progress, dict) else None
+
+    @staticmethod
+    def _progress_timestamp(progress: dict | None) -> datetime | None:
+        if not isinstance(progress, dict):
+            return None
+        raw_value = progress.get("timestamp")
+        if not isinstance(raw_value, str) or not raw_value:
+            return None
+        try:
+            return datetime.fromisoformat(raw_value)
+        except ValueError:
+            return None
+
+    @classmethod
+    def _is_stale_finished_progress(cls, progress: dict | None) -> bool:
+        """Return True for non-terminal progress that likely missed completion."""
+        if not isinstance(progress, dict):
+            return False
+        if progress.get("stage") in {"completed", "error"}:
+            return False
+
+        total = progress.get("total")
+        current = progress.get("current")
+        percent = progress.get("percent", progress.get("progress_percent"))
+        finished_counter = (
+            isinstance(total, (int, float))
+            and total > 0
+            and isinstance(current, (int, float))
+            and current >= total
+        )
+        finished_percent = isinstance(percent, (int, float)) and percent >= 100
+        if not finished_counter and not finished_percent:
+            return False
+
+        timestamp = cls._progress_timestamp(progress)
+        if timestamp is None:
+            return False
+        return (datetime.now() - timestamp).total_seconds() >= STALE_FINISHED_PROGRESS_SECONDS
+
     def get_metadata(self, name: str | None = None) -> dict:
         """Get knowledge base metadata.
 
@@ -719,6 +771,7 @@ class KnowledgeBaseManager:
 
             index_versions = list_kb_versions(kb_dir)
             has_ready_llamaindex = any(bool(version.get("ready")) for version in index_versions)
+        progress_snapshot = self._read_progress_snapshot(kb_dir) if dir_exists else None
 
         # For old KBs without status field, determine status from rag_storage
         if effective_needs_reindex:
@@ -750,6 +803,47 @@ class KnowledgeBaseManager:
                 status = "unknown"
         elif not status:
             status = "unknown"
+
+        config_changed = False
+        completed_progress: dict | None = None
+        if isinstance(progress, dict) and progress.get("stage") == "completed":
+            completed_progress = progress
+        elif self._is_stale_finished_progress(progress):
+            completed_progress = progress
+        elif (
+            isinstance(progress_snapshot, dict)
+            and progress_snapshot.get("stage") == "completed"
+        ):
+            config_ts = self._progress_timestamp(progress)
+            snapshot_ts = self._progress_timestamp(progress_snapshot)
+            if config_ts is None or snapshot_ts is None or snapshot_ts >= config_ts:
+                completed_progress = progress_snapshot
+
+        if (
+            not needs_reindex
+            and status in {"initializing", "processing", "unknown"}
+            and completed_progress
+            and has_ready_llamaindex
+        ):
+            status = "ready"
+            progress = None
+            kb_config["status"] = "ready"
+            kb_config.pop("progress", None)
+            completed_at = completed_progress.get("timestamp")
+            if completed_at:
+                kb_config["last_completed_at"] = completed_at
+            kb_config["updated_at"] = datetime.now().isoformat()
+            config_changed = True
+        elif status == "ready" and progress is not None:
+            progress = None
+            kb_config.pop("progress", None)
+            config_changed = True
+
+        if config_changed:
+            try:
+                self._save_config()
+            except Exception as save_err:
+                logger.warning(f"Failed to persist normalized KB state: {save_err}")
 
         # Build metadata from kb_config.json (authoritative source)
         metadata = {

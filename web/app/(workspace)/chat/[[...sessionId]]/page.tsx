@@ -1197,9 +1197,9 @@ export default function ChatPage() {
       state.messages
         .find((msg) => msg.role === "user")
         ?.content.trim()
-        .slice(0, 80) || "Chat Session";
+        .slice(0, 80) || t("Chat Session");
     downloadChatMarkdown(state.messages, { title });
-  }, [state.messages]);
+  }, [state.messages, t]);
 
   return (
     <div

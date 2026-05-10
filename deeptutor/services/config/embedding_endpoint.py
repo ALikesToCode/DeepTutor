@@ -10,19 +10,24 @@ from urllib.parse import urlparse
 
 EMBEDDING_PROVIDER_ALIASES = {
     "google": "gemini",
+    "google_genai": "gemini",
     "huggingface": "custom",
     "lm_studio": "vllm",
     "llama_cpp": "vllm",
+    "navyai": "navy",
+    "api_navy": "navy",
     "openai_compatible": "custom",
 }
 
 EMBEDDING_PROVIDER_LABELS = {
     "openai": "OpenAI",
     "gemini": "Gemini",
+    "navy": "NavyAI",
     "openrouter": "OpenRouter",
     "jina": "Jina",
     "vllm": "vLLM / LM Studio",
     "siliconflow": "SiliconFlow",
+    "aliyun": "Aliyun DashScope",
     "ollama": "Ollama",
     "cohere": "Cohere",
 }
@@ -30,6 +35,7 @@ EMBEDDING_PROVIDER_LABELS = {
 EMBEDDING_PROVIDER_DEFAULT_ENDPOINTS = {
     "openai": "https://api.openai.com/v1/embeddings",
     "gemini": "https://generativelanguage.googleapis.com/v1beta/openai/embeddings",
+    "navy": "https://api.navy/v1/embeddings",
     "openrouter": "https://openrouter.ai/api/v1/embeddings",
     "cohere": "https://api.cohere.com/v2/embed",
     "jina": "https://api.jina.ai/v1/embeddings",
@@ -45,6 +51,7 @@ EMBEDDING_PROVIDER_DEFAULT_ENDPOINTS = {
 EMBEDDING_PROVIDERS_REQUIRING_EMBEDDINGS_PATH = {
     "openai",
     "gemini",
+    "navy",
     "openrouter",
     "jina",
     "vllm",

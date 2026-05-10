@@ -15,6 +15,7 @@ from deeptutor.tools.builtin import (
     BrainstormTool,
     CodeExecutionTool,
     GeoGebraAnalysisTool,
+    MediaGenerationTool,
     PaperSearchToolWrapper,
     RAGTool,
     ReasonTool,
@@ -35,7 +36,7 @@ def _install_module(
             monkeypatch.setitem(sys.modules, pkg_name, pkg)
             if idx > 1:
                 parent = sys.modules[".".join(parts[: idx - 1])]
-                setattr(parent, parts[idx - 1], pkg)
+                monkeypatch.setattr(parent, parts[idx - 1], pkg, raising=False)
 
     module = types.ModuleType(fullname)
     for key, value in attrs.items():
@@ -43,7 +44,7 @@ def _install_module(
     monkeypatch.setitem(sys.modules, fullname, module)
     if len(parts) > 1:
         parent = sys.modules[".".join(parts[:-1])]
-        setattr(parent, parts[-1], module)
+        monkeypatch.setattr(parent, parts[-1], module, raising=False)
     return module
 
 
@@ -95,19 +96,16 @@ async def test_rag_tool_forwards_query_and_extra_kwargs(monkeypatch: pytest.Monk
 
 @pytest.mark.asyncio
 async def test_rag_tool_rejects_empty_query(monkeypatch: pytest.MonkeyPatch) -> None:
-    called = False
-
     async def fake_rag_search(**_kwargs: Any) -> dict[str, Any]:
-        nonlocal called
-        called = True
-        return {"answer": "should not run"}
+        raise AssertionError("rag_search should not be called for an empty query")
 
     _install_module(monkeypatch, "deeptutor.tools.rag_tool", rag_search=fake_rag_search)
 
-    with pytest.raises(ValueError, match="RAG query must be a non-empty string"):
-        await RAGTool().execute(query="  ", kb_name="demo-kb")
+    result = await RAGTool().execute(query="", kb_name="speech technology")
 
-    assert called is False
+    assert result.success is False
+    assert result.content == "RAG query is required."
+    assert result.metadata == {"error": "missing_query", "kb_name": "speech technology"}
 
 
 @pytest.mark.asyncio
@@ -285,6 +283,49 @@ async def test_geogebra_analysis_tool_handles_success(monkeypatch: pytest.Monkey
     assert result.success is True
     assert "A=(0,0)" in result.content
     assert result.metadata["commands_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_media_generation_tool_wraps_navy_result(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+
+    async def fake_generate_media(**kwargs: Any) -> dict[str, Any]:
+        captured.update(kwargs)
+        return {
+            "provider": "navy",
+            "model": "gpt-image-2",
+            "output_type": "image",
+            "purpose": "infographic",
+            "status": "completed",
+            "job_id": "",
+            "assets": [
+                {
+                    "type": "image",
+                    "url": "https://cdn.example/asset.png",
+                }
+            ],
+        }
+
+    _install_module(
+        monkeypatch,
+        "deeptutor.tools.media_generation",
+        generate_media=fake_generate_media,
+    )
+
+    result = await MediaGenerationTool().execute(
+        prompt="Clean 16:9 infographic about photosynthesis",
+        purpose="infographic",
+        aspect_ratio="16:9",
+    )
+
+    assert result.success is True
+    assert "completed" in result.content
+    assert "https://cdn.example/asset.png" in result.content
+    assert result.sources[0]["type"] == "media"
+    assert result.sources[0]["url"] == "https://cdn.example/asset.png"
+    assert captured["prompt"] == "Clean 16:9 infographic about photosynthesis"
+    assert captured["purpose"] == "infographic"
+    assert captured["aspect_ratio"] == "16:9"
 
 
 @pytest.mark.asyncio

@@ -79,7 +79,7 @@
 
 > **[2026.4.10]** [v1.0.0-beta.4](https://github.com/HKUDS/DeepTutor/releases/tag/v1.0.0-beta.4) — прогресс эмбеддингов с повтором при лимите; кроссплатформенные зависимости; проверка MIME.
 
-> **[2026.4.8]** [v1.0.0-beta.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.0.0-beta.3) — нативные SDK OpenAI/Anthropic (без litellm); Math Animator на Windows; более устойчичный разбор JSON; полная китайская i18n.
+> **[2026.4.8]** [v1.0.0-beta.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.0.0-beta.3) — нативные SDK OpenAI/Anthropic (без litellm); Math Animator на Windows; более устойчивый разбор JSON; полная китайская i18n.
 
 > **[2026.4.7]** [v1.0.0-beta.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.0.0-beta.2) — горячая перезагрузка настроек; вложенный вывод MinerU; исправление WebSocket; минимум Python 3.11+.
 

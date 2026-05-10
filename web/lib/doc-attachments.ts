@@ -229,11 +229,12 @@ export function extOf(filename: string): string {
  */
 export function classifyFile(file: File): FileKind | null {
   const ext = extOf(file.name);
+  const hasSupportedDocExtension =
+    !!ext && (SUPPORTED_DOC_EXTS as readonly string[]).includes(ext);
   if (ext === ".svg" || file.type === "image/svg+xml") return "doc";
   if (file.type && file.type.startsWith("image/")) return "image";
-  if (file.type && SUPPORTED_DOC_MIMES.has(file.type)) return "doc";
-  if (ext && (SUPPORTED_DOC_EXTS as readonly string[]).includes(ext))
-    return "doc";
+  if (file.type && SUPPORTED_DOC_MIMES.has(file.type) && hasSupportedDocExtension) return "doc";
+  if (hasSupportedDocExtension) return "doc";
   return null;
 }
 

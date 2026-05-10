@@ -421,6 +421,7 @@ _LANG = "en"
 
 LLM_MODEL_SUGGESTIONS = {
     "openai": "gpt-4o-mini",
+    "navy": "gpt-5.4-mini",
     "anthropic": "claude-3-5-sonnet-latest",
     "deepseek": "deepseek-chat",
     "dashscope": "qwen-max",
@@ -452,6 +453,7 @@ LLM_MODEL_SUGGESTIONS = {
 
 EMBEDDING_MODEL_SUGGESTIONS = {
     "openai": "text-embedding-3-large",
+    "navy": "gemini-embedding-2-preview",
     "gemini": "gemini-embedding-001",
     "cohere": "embed-v4.0",
     "jina": "jina-embeddings-v3",
@@ -657,6 +659,7 @@ _LLM_MODE_ORDER = {
 # Featured providers appear first within their mode group.
 _LLM_FEATURED_ORDER = (
     "openai",
+    "navy",
     "anthropic",
     "deepseek",
     "gemini",
@@ -708,7 +711,17 @@ def _llm_provider_options(current: str | None) -> list[tuple[str, str, str]]:
 
 def _embedding_provider_options(current: str | None) -> list[tuple[str, str, str]]:
     embedding_providers, _, _ = _load_provider_metadata()
-    common = ["openai", "gemini", "jina", "cohere", "ollama", "vllm", "azure_openai", "custom"]
+    common = [
+        "openai",
+        "navy",
+        "gemini",
+        "jina",
+        "cohere",
+        "ollama",
+        "vllm",
+        "azure_openai",
+        "custom",
+    ]
     options: list[tuple[str, str, str]] = []
     for name in common:
         spec = embedding_providers.get(name)

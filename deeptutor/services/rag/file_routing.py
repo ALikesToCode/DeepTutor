@@ -174,15 +174,27 @@ class FileTypeRouter:
     }
 
     IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff", ".tif"}
+    TEXT_CONTROL_BYTES = {8, 9, 10, 12, 13}
+
+    @staticmethod
+    def extension_for_path(file_path: str) -> str:
+        """Return a supported extension, including dotfiles such as .env."""
+        name = Path(file_path or "").name.lower()
+        if name.startswith(".") and name.count(".") == 1:
+            return name
+        return Path(name).suffix.lower()
 
     @classmethod
     def get_document_type(cls, file_path: str) -> DocumentType:
         """Classify a single file by its type."""
-        ext = Path(file_path).suffix.lower()
+        ext = cls.extension_for_path(file_path)
+        path_obj = Path(file_path)
 
         if ext in cls.PDF_EXTENSIONS:
             return DocumentType.PDF
         elif ext in cls.TEXT_EXTENSIONS:
+            if path_obj.is_file() and not cls._is_text_file(file_path):
+                return DocumentType.UNKNOWN
             return DocumentType.TEXT
         elif ext == ".docx":
             return DocumentType.DOCX
@@ -204,10 +216,10 @@ class FileTypeRouter:
             with open(file_path, "rb") as f:
                 chunk = f.read(sample_size)
 
-            if b"\x00" in chunk:
+            if cls.looks_binary(chunk):
                 return False
 
-            chunk.decode("utf-8")
+            cls.decode_bytes(chunk)
             return True
         except (UnicodeDecodeError, IOError, OSError):
             return False
@@ -256,12 +268,35 @@ class FileTypeRouter:
     )
 
     @classmethod
+    def looks_binary(cls, data: bytes, sample_size: int = 8192) -> bool:
+        """Cheap binary-content sniff for text-like upload guards."""
+        sample = data[:sample_size]
+        if not sample:
+            return False
+        if b"\x00" in sample:
+            return True
+        controls = sum(
+            1
+            for byte in sample
+            if (byte < 32 and byte not in cls.TEXT_CONTROL_BYTES) or byte == 127
+        )
+        return controls / len(sample) > 0.05
+
+    @classmethod
     def decode_bytes(cls, data: bytes) -> str:
         """Decode raw bytes using the same fallback chain as read_text_file.
 
         Used by the chat-attachment extractor so path-based and bytes-based
         callers share one source of truth for supported encodings.
         """
+        if cls.looks_binary(data):
+            raise UnicodeDecodeError(
+                "utf-8",
+                data,
+                0,
+                min(len(data), 1),
+                "binary-like content",
+            )
         for encoding in cls.TEXT_DECODING_CANDIDATES:
             try:
                 return data.decode(encoding)
@@ -272,15 +307,8 @@ class FileTypeRouter:
     @classmethod
     async def read_text_file(cls, file_path: str) -> str:
         """Read a text file with automatic encoding detection."""
-        for encoding in cls.TEXT_DECODING_CANDIDATES:
-            try:
-                with open(file_path, "r", encoding=encoding) as f:
-                    return f.read()
-            except UnicodeDecodeError:
-                continue
-
         with open(file_path, "rb") as f:
-            return f.read().decode("utf-8", errors="replace")
+            return cls.decode_bytes(f.read())
 
     @classmethod
     def needs_parser(cls, file_path: str) -> bool:

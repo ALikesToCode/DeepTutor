@@ -68,6 +68,9 @@ class EmbeddingProviderSpec:
     mode: str = "standard"
     default_model: str = ""
     default_dim: int = 0
+    detect_by_key_prefix: str = ""
+    detect_by_base_keyword: str = ""
+    default_send_dimensions: bool | None = None
     # Per-provider cap on items per embedding request batch. Adapters/clients
     # clamp `batch_size` against this. SiliconFlow Qwen3 family caps at 32;
     # DashScope caps at 20; most others have generous limits.
@@ -91,9 +94,23 @@ EMBEDDING_PROVIDERS: dict[str, EmbeddingProviderSpec] = {
         default_api_base=EMBEDDING_PROVIDER_DEFAULT_ENDPOINTS["gemini"],
         keywords=("gemini", "gemini-embedding", "text-embedding"),
         is_local=False,
-        api_key_envs=("GEMINI_API_KEY",),
+        api_key_envs=("GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY", "GOOGLE_API_KEY"),
         default_model="gemini-embedding-001",
         default_dim=3072,
+        detect_by_base_keyword="generativelanguage.googleapis.com",
+    ),
+    "navy": EmbeddingProviderSpec(
+        label="NavyAI",
+        mode="gateway",
+        default_api_base=EMBEDDING_PROVIDER_DEFAULT_ENDPOINTS["navy"],
+        keywords=("navy", "navyai"),
+        is_local=False,
+        api_key_envs=("NAVY_API_KEY",),
+        default_model="gemini-embedding-2-preview",
+        default_dim=3072,
+        detect_by_key_prefix="sk-navy-",
+        detect_by_base_keyword="api.navy",
+        default_send_dimensions=False,
     ),
     "azure_openai": EmbeddingProviderSpec(
         label="Azure OpenAI",
@@ -392,6 +409,12 @@ def _choose_resolved_provider(
     return find_by_name("openai") or PROVIDERS[0]
 
 
+def _llm_provider_env_key(spec: ProviderSpec, env: EnvStore) -> str:
+    if not spec.env_key:
+        return ""
+    return env.get(spec.env_key, "").strip()
+
+
 def resolve_llm_runtime_config(
     catalog: dict[str, Any] | None = None,
     *,
@@ -445,6 +468,8 @@ def resolve_llm_runtime_config(
 
     mapped = provider_pool.get(spec.name)
     api_key = active_api_key or (mapped.api_key if mapped else "")
+    if not api_key:
+        api_key = _llm_provider_env_key(spec, env)
     api_base = active_api_base or ((mapped.api_base or "") if mapped else "")
     api_version = active_api_version or ((mapped.api_version or "") if mapped else "")
     if not api_base and spec.default_api_base:
@@ -549,15 +574,35 @@ def _coerce_optional_int(value: Any) -> int | None:
     return parsed if parsed > 0 else None
 
 
+def _detect_embedding_gateway(
+    *,
+    api_key: str,
+    api_base: str | None,
+) -> str | None:
+    base_lower = (api_base or "").lower()
+    for provider_name, spec in EMBEDDING_PROVIDERS.items():
+        if spec.detect_by_key_prefix and api_key.startswith(spec.detect_by_key_prefix):
+            return provider_name
+        if spec.detect_by_base_keyword and spec.detect_by_base_keyword in base_lower:
+            return provider_name
+    return None
+
+
 def _resolve_embedding_provider(
     *,
     hint: str | None,
     model: str,
+    api_key: str,
     api_base: str | None,
     provider_pool: dict[str, NormalizedProviderConfig],
 ) -> str:
+    detected_gateway = _detect_embedding_gateway(api_key=api_key, api_base=api_base)
     if hint and hint in EMBEDDING_PROVIDERS:
+        if detected_gateway and hint == "openai":
+            return detected_gateway
         return hint
+    if detected_gateway:
+        return detected_gateway
 
     model_lower = (model or "").lower()
     model_prefix = model_lower.split("/", 1)[0].replace("-", "_") if "/" in model_lower else ""
@@ -646,6 +691,7 @@ def resolve_embedding_runtime_config(
     provider_name = _resolve_embedding_provider(
         hint=binding_hint,
         model=resolved_model,
+        api_key=active_api_key,
         api_base=active_api_base or None,
         provider_pool=provider_pool,
     )
@@ -661,6 +707,11 @@ def resolve_embedding_runtime_config(
         api_base = spec.default_api_base
     api_version = active_api_version or ((mapped.api_version or "") if mapped else "")
     extra_headers = active_extra_headers or ((mapped.extra_headers or {}) if mapped else {})
+
+    if spec.is_local and not api_key:
+        api_key = "sk-no-key-required"
+    if send_dimensions is None:
+        send_dimensions = spec.default_send_dimensions
 
     return ResolvedEmbeddingConfig(
         model=resolved_model,

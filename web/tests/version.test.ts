@@ -52,6 +52,10 @@ test("normalizeVersionTag only returns exact version tags", () => {
   assert.equal(normalizeVersionTag("v1.2.3-5-gabc1234"), null);
 });
 
+test("parseBuild lets unknown raw versions fall through", () => {
+  assert.equal(parseBuild("abc1234"), null);
+});
+
 test("unknownBuild keeps an unknown raw version visible", () => {
   assert.deepEqual(unknownBuild("abc1234"), {
     tag: null,

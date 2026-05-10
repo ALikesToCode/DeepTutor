@@ -69,7 +69,10 @@ def _env(tmp_path: Path, lines: list[str]) -> EnvStore:
         "AZURE_API_KEY=",
         "COHERE_API_KEY=",
         "JINA_API_KEY=",
+        "NAVY_API_KEY=",
         "GEMINI_API_KEY=",
+        "GOOGLE_GENERATIVE_AI_API_KEY=",
+        "GOOGLE_API_KEY=",
         "HOSTED_VLLM_API_KEY=",
     ]
     env_path = tmp_path / ".env"
@@ -159,6 +162,62 @@ def test_embedding_gemini_default_base_and_env_key_fallback(tmp_path: Path) -> N
     )
 
 
+def test_embedding_navy_default_base_and_env_key_fallback(tmp_path: Path) -> None:
+    catalog = _build_catalog(
+        embedding_profile={
+            "id": "embedding-p",
+            "name": "Embedding",
+            "binding": "navy",
+            "base_url": "",
+            "api_key": "",
+            "api_version": "",
+            "extra_headers": {},
+            "models": [
+                {
+                    "id": "embedding-m",
+                    "name": "m",
+                    "model": "gemini-embedding-2-preview",
+                }
+            ],
+        }
+    )
+    env = _env(tmp_path, ["NAVY_API_KEY=sk-navy-test"])
+    resolved = resolve_embedding_runtime_config(catalog=catalog, env_store=env)
+    assert resolved.provider_name == "navy"
+    assert resolved.binding == "navy"
+    assert resolved.provider_mode == "gateway"
+    assert resolved.api_key == "sk-navy-test"
+    assert resolved.effective_url == "https://api.navy/v1/embeddings"
+    assert resolved.send_dimensions is False
+
+
+def test_embedding_openai_binding_detects_navy_gateway_base_url(tmp_path: Path) -> None:
+    catalog = _build_catalog(
+        embedding_profile={
+            "id": "embedding-p",
+            "name": "Embedding",
+            "binding": "openai",
+            "base_url": "https://api.navy/v1/embeddings",
+            "api_key": "",
+            "api_version": "",
+            "extra_headers": {},
+            "models": [
+                {
+                    "id": "embedding-m",
+                    "name": "m",
+                    "model": "gemini-embedding-2-preview",
+                }
+            ],
+        }
+    )
+    env = _env(tmp_path, ["NAVY_API_KEY=sk-navy-from-env"])
+    resolved = resolve_embedding_runtime_config(catalog=catalog, env_store=env)
+    assert resolved.provider_name == "navy"
+    assert resolved.binding == "navy"
+    assert resolved.api_key == "sk-navy-from-env"
+    assert resolved.effective_url == "https://api.navy/v1/embeddings"
+
+
 def test_embedding_local_fallback_from_base_url(tmp_path: Path) -> None:
     catalog = _build_catalog(
         embedding_profile={
@@ -175,7 +234,7 @@ def test_embedding_local_fallback_from_base_url(tmp_path: Path) -> None:
     resolved = resolve_embedding_runtime_config(catalog=catalog, env_store=_env(tmp_path, []))
     assert resolved.provider_name == "ollama"
     assert resolved.provider_mode == "local"
-    assert resolved.api_key == ""
+    assert resolved.api_key == "sk-no-key-required"
 
 
 def test_embedding_local_vllm_keeps_explicit_env_key(tmp_path: Path) -> None:
