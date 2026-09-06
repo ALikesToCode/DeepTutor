@@ -777,6 +777,34 @@ export function repairChineseEmphasis(
 }
 
 /**
+ * Extend an already-repaired string with a streamed delta.
+ *
+ * ``repairChineseEmphasis`` works a line at a time, so a line that is still
+ * arriving cannot be repaired meaningfully yet — and re-running the whole
+ * repair on every streamed chunk is quadratic in the reply's length. A long
+ * Chinese answer arriving in several hundred chunks meant several hundred
+ * full-text passes (three masking regexes, a per-line rewrite, three restores)
+ * over an ever-growing string, which is felt as the stream stuttering and
+ * falling behind the model late in a long answer.
+ *
+ * So the repair runs when a newline completes a line, which is the earliest
+ * point its result can differ from the raw text, and the partial trailing line
+ * is shown as it came. The final line has no newline to trigger it: callers
+ * run ``repairChineseEmphasis`` once when the turn ends. The end state is
+ * identical to repairing on every chunk.
+ */
+export function appendWithEmphasisRepair(
+  repairedSoFar: string,
+  delta: string,
+  rawContent: string,
+  language?: string,
+): string {
+  if (!language?.toLowerCase().startsWith("zh")) return rawContent;
+  if (delta.includes("\n")) return repairChineseEmphasis(rawContent, language);
+  return repairedSoFar + delta;
+}
+
+/**
  * Repair one line, or leave it exactly as it was.
  *
  * The regex pairs an opening ``**`` with the next one on the line, which is
