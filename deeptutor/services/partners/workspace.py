@@ -19,7 +19,9 @@ copied into the partner scope as plain files. All three asset classes are
 self-contained on disk, so a copy is a complete transfer:
 
 * KB: the whole ``<kb>/`` tree (raw + LlamaIndex ``version-N`` dirs); the
-  partner-side ``KnowledgeBaseManager`` auto-registers it on first list.
+  partner-side ``KnowledgeBaseManager`` auto-registers it on first list. A
+  connected/pointer KB (Obsidian, ``linked``, ...) has no such tree, so its
+  ``kb_config.json`` entry is registered directly instead of copied.
 * Skill: the whole ``<name>/`` dir (SKILL.md + references).
 * Notebook: ``<id>.json`` plus its ``notebooks_index.json`` entry.
 """
@@ -162,13 +164,26 @@ def _err(exc: Exception) -> str:
 
 
 def _copy_knowledge_base(kb_ref: str, partner_root: Path) -> str:
+    from deeptutor.knowledge.kb_types import is_connected_kb
+    from deeptutor.knowledge.manager import KnowledgeBaseManager
     from deeptutor.multi_user.knowledge_access import resolve_kb
 
     resource = resolve_kb(kb_ref)
+    dst_root = partner_root / "knowledge_bases"
+    entry = KnowledgeBaseManager(base_dir=str(resource.base_dir)).get_kb_entry(resource.name)
+
+    if is_connected_kb(entry):
+        # Pointer KB: no on-disk tree to copy, register the entry directly.
+        dst_manager = KnowledgeBaseManager(base_dir=str(dst_root))
+        if resource.name not in dst_manager.list_knowledge_bases():
+            dst_manager.config.setdefault("knowledge_bases", {})[resource.name] = dict(entry)
+            dst_manager._save_config()
+        return resource.name
+
     src = Path(resource.base_dir) / resource.name
     if not src.is_dir():
         raise FileNotFoundError(f"Knowledge base directory missing: {resource.name}")
-    dst = partner_root / "knowledge_bases" / resource.name
+    dst = dst_root / resource.name
     if dst.exists():
         return resource.name  # already provisioned
     shutil.copytree(src, dst)

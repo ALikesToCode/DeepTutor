@@ -52,6 +52,17 @@ def _seed_admin_skill(admin_root, name="research-mode"):
     return skill
 
 
+def _seed_admin_connected_kb(admin_root, name="myvault", kb_type="obsidian"):
+    config_path = admin_root / "knowledge_bases" / "kb_config.json"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(
+        json.dumps(
+            {"knowledge_bases": {name: {"type": kb_type, "vault_path": "/home/user/notes"}}}
+        ),
+        encoding="utf-8",
+    )
+
+
 def _seed_admin_notebook(admin_root, notebook_id="nb1"):
     nb_dir = admin_root / "user" / "workspace" / "notebook"
     nb_dir.mkdir(parents=True)
@@ -141,6 +152,35 @@ class TestProvisioning:
         report = provision_assets("ada", knowledge_bases=["physics"])
         assert report["errors"] == []
         assert report["copied"]["knowledge_bases"] == ["physics"]
+
+    def test_connected_kb_is_registered_not_copied(self, partners_root):
+        # A connected/pointer KB (Obsidian vault, linked index, ...) has no
+        # `<kb>/` folder on disk by design, so provisioning it must not
+        # attempt a copytree. Regression for #1259.
+        from deeptutor.knowledge.manager import KnowledgeBaseManager
+
+        admin_root = partners_root.parent
+        _seed_admin_connected_kb(admin_root)
+
+        report = provision_assets("ada", knowledge_bases=["myvault"])
+        assert report["errors"] == []
+        assert report["copied"]["knowledge_bases"] == ["myvault"]
+
+        partner_kb_dir = partners_root / "ada" / "workspace" / "knowledge_bases"
+        assert not (partner_kb_dir / "myvault").exists()
+        manager = KnowledgeBaseManager(base_dir=str(partner_kb_dir))
+        assert manager.get_kb_entry("myvault") == {
+            "type": "obsidian",
+            "vault_path": "/home/user/notes",
+        }
+
+    def test_connected_kb_provisioning_is_idempotent(self, partners_root):
+        admin_root = partners_root.parent
+        _seed_admin_connected_kb(admin_root)
+        provision_assets("ada", knowledge_bases=["myvault"])
+        report = provision_assets("ada", knowledge_bases=["myvault"])
+        assert report["errors"] == []
+        assert report["copied"]["knowledge_bases"] == ["myvault"]
 
 
 class TestInventoryAndRemoval:
