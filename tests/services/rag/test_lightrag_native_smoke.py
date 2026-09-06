@@ -17,9 +17,9 @@ from deeptutor.services.rag.pipelines.lightrag import engine, ingress, storage
 
 
 async def _fake_llm(_prompt, **_kwargs) -> str:
-    # This superset satisfies rc2's table/equation analysis schemas. Entity
-    # extraction may validly produce zero records; the document still reaches
-    # PROCESSED with real parser, chunk, storage and embedding code.
+    # This superset satisfies the stable SDK's table/equation analysis schemas.
+    # Entity extraction may validly produce zero records; the document still
+    # reaches PROCESSED with real parser, chunk, storage and embedding code.
     return '{"name":"fixture","description":"fixture analysis","equation":"x^2","type":"Other"}'
 
 
@@ -60,7 +60,7 @@ async def _process(working_dir: Path, staged: ingress.StagedDocument) -> dict:
         await engine.finalize(rag, cancel_pending=failed)
 
 
-def test_real_rc2_raw_bridge_reaches_processed(monkeypatch, tmp_path: Path) -> None:
+def test_real_stable_raw_bridge_reaches_processed(monkeypatch, tmp_path: Path) -> None:
     _configure_real_sdk(monkeypatch)
     working = tmp_path / "version-1"
     working.mkdir()
@@ -95,7 +95,7 @@ def test_real_rc2_raw_bridge_reaches_processed(monkeypatch, tmp_path: Path) -> N
     assert meta["parser_inputs"] == [{"engine": "text_only", "parser_signature": "fixture-parser"}]
 
 
-def test_real_rc2_sidecar_bridge_reaches_processed(monkeypatch, tmp_path: Path) -> None:
+def test_real_stable_sidecar_bridge_reaches_processed(monkeypatch, tmp_path: Path) -> None:
     _configure_real_sdk(monkeypatch)
     working = tmp_path / "version-1"
     working.mkdir()
@@ -140,7 +140,7 @@ def test_real_rc2_sidecar_bridge_reaches_processed(monkeypatch, tmp_path: Path) 
     assert list((ingress.pending_root(working) / "__parsed__").glob("paper.pdf"))
 
 
-def test_real_rc2_append_uses_only_new_doc_and_links_existing_entity(
+def test_real_stable_append_uses_only_new_doc_and_links_existing_entity(
     monkeypatch, tmp_path: Path
 ) -> None:
     async def entity_llm(prompt, **_kwargs) -> str:
