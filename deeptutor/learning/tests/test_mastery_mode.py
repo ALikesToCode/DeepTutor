@@ -8,6 +8,7 @@ that is exactly where the guarantee now is.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -397,9 +398,16 @@ async def test_a_built_goal_reports_its_identity_too(path_id):
 def _pack(language: str) -> dict:
     import yaml
 
-    return yaml.safe_load(
-        open(f"deeptutor/capabilities/mastery/prompts/{language}/mastery_loop.yaml")
+    prompt_path = (
+        Path(__file__).resolve().parents[3]
+        / "deeptutor"
+        / "capabilities"
+        / "mastery"
+        / "prompts"
+        / language
+        / "mastery_loop.yaml"
     )
+    return yaml.safe_load(prompt_path.read_text(encoding="utf-8"))
 
 
 def test_study_never_offers_to_do_the_reviewing_itself():
