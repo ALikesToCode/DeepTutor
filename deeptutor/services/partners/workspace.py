@@ -173,11 +173,10 @@ def _copy_knowledge_base(kb_ref: str, partner_root: Path) -> str:
     entry = KnowledgeBaseManager(base_dir=str(resource.base_dir)).get_kb_entry(resource.name)
 
     if is_connected_kb(entry):
-        # Pointer KB: no on-disk tree to copy, register the entry directly.
-        dst_manager = KnowledgeBaseManager(base_dir=str(dst_root))
-        if resource.name not in dst_manager.list_knowledge_bases():
-            dst_manager.config.setdefault("knowledge_bases", {})[resource.name] = dict(entry)
-            dst_manager._save_config()
+        # Pointer KB: no on-disk tree to copy, so hand over the config row.
+        # ``register_connected_entry`` is a no-op when the partner already has
+        # it, which keeps provisioning idempotent like the copytree branch.
+        KnowledgeBaseManager(base_dir=str(dst_root)).register_connected_entry(resource.name, entry)
         return resource.name
 
     src = Path(resource.base_dir) / resource.name
