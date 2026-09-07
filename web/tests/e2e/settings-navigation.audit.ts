@@ -1,58 +1,52 @@
 import { expect, test } from '@playwright/test'
 
-function emptyCatalog() {
-  return {
+// The v1.6.5 settings hub mounts the readiness panel only once the settings
+// store has loaded an *editable* catalog (`catalogEditable === true`), which
+// happens when `/api/settings` answers with a `catalog` body. This audit runs
+// against a production web server with no backend, so it stubs the same
+// settings bootstrap the sibling ui-audit scenarios stub (cf. the book/video
+// audits' `/api/settings` route); without it the panel never mounts and the
+// whole scenario is skipped before it has exercised anything.
+const MINIMAL_EDITABLE_SETTINGS = {
+  ui: {
+    theme: 'light',
+    language: 'en',
+    response_language: 'en',
+    code_block_theme: 'github',
+    code_block_show_line_numbers: false,
+    code_block_wrap_long_lines: false,
+  },
+  catalog: {
     version: 1,
+    connections: [],
     services: {
       llm: { active_profile_id: null, active_model_id: null, profiles: [] },
       task: { active_profile_id: null, active_model_id: null, profiles: [] },
-      embedding: {
-        active_profile_id: null,
-        active_model_id: null,
-        profiles: [],
-      },
+      embedding: { active_profile_id: null, active_model_id: null, profiles: [] },
       search: { active_profile_id: null, profiles: [] },
       tts: { active_profile_id: null, active_model_id: null, profiles: [] },
       stt: { active_profile_id: null, active_model_id: null, profiles: [] },
-      imagegen: {
-        active_profile_id: null,
-        active_model_id: null,
-        profiles: [],
-      },
-      videogen: {
-        active_profile_id: null,
-        active_model_id: null,
-        profiles: [],
-      },
+      imagegen: { active_profile_id: null, active_model_id: null, profiles: [] },
+      videogen: { active_profile_id: null, active_model_id: null, profiles: [] },
     },
-  }
+  },
+  providers: {},
+  connection_targets: [],
 }
 
 test.describe('Settings navigation', () => {
-  test('reports what is ready without dressing optional gaps as faults', async ({ page }) => {
+  test('reports what is ready without dressing optional gaps as faults', async ({
+    page,
+  }) => {
+    // Keep this fixture independent of any backend on developer machines;
+    // the catch-all is registered first so the specific stubs below win.
     await page.route('**/api/**', route =>
-      route.fulfill({ status: 404, json: { detail: 'not mocked' } })
-    )
-    await page.route('**/api/auth/status', route =>
-      route.fulfill({
-        status: 200,
-        json: { enabled: false, authenticated: false },
-      })
+      route.fulfill({ status: 404, json: {} })
     )
     await page.route('**/api/settings', route =>
       route.fulfill({
         status: 200,
-        json: {
-          catalog: emptyCatalog(),
-          ui: {
-            theme: 'light',
-            language: 'en',
-            response_language: 'en',
-            code_block_theme: 'github',
-            code_block_show_line_numbers: false,
-            code_block_wrap_long_lines: false,
-          },
-        },
+        json: MINIMAL_EDITABLE_SETTINGS,
       })
     )
     await page.route('**/api/settings/draft', route =>
@@ -124,13 +118,17 @@ test.describe('Settings navigation', () => {
 
     await page.goto('/settings')
 
-    const panel = page.locator('section[aria-labelledby="capability-readiness-title"]')
+    const panel = page.locator(
+      'section[aria-labelledby="capability-readiness-title"]'
+    )
     await expect(panel).toBeVisible()
     const matrix = page.getByTestId('settings-readiness-matrix')
     await expect(matrix).toBeVisible()
 
     // The selected parser that cannot be reached is the one thing called out.
-    await expect(panel.getByText(/endpoint is unreachable|服务地址连不上/).first()).toBeVisible()
+    await expect(
+      matrix.getByText(/endpoint is unreachable|服务地址连不上/)
+    ).toBeVisible()
     // The optional tool is folded behind its disclosure, not in the open list.
     await expect(
       matrix.getByText(/Video generation tool|视频生成工具/, { exact: true })
