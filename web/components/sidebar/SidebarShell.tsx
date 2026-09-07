@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -13,7 +14,6 @@ import {
 import { useAppShell } from "@/context/AppShellContext";
 import { BookText, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import OrganizedSessionList from "@/components/courses/OrganizedSessionList";
 import SessionList from "@/components/SessionList";
 import { useSidebarDrawer } from "@/components/layout/AppShell";
 import { useDevice } from "@/hooks/useDevice";
@@ -75,6 +75,25 @@ function GitHubMarkLink({
     </a>
   );
 }
+
+// Session data arrives after mount; defer its organization UI with it so
+// every workspace route does not download it as part of the initial shell.
+const OrganizedSessionList = dynamic(
+  () => import("@/components/courses/OrganizedSessionList"),
+  {
+    ssr: false,
+    loading: () => (
+      <div aria-busy="true" className="space-y-1.5 px-2 py-1">
+        {[1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="h-4 w-3/4 animate-pulse rounded bg-[var(--muted)]/40"
+          />
+        ))}
+      </div>
+    ),
+  },
+);
 
 interface SidebarShellProps {
   sessions?: SessionSummary[];

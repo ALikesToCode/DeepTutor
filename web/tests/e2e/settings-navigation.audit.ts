@@ -38,11 +38,19 @@ test.describe('Settings navigation', () => {
   test('reports what is ready without dressing optional gaps as faults', async ({
     page,
   }) => {
+    // Keep this fixture independent of any backend on developer machines;
+    // the catch-all is registered first so the specific stubs below win.
+    await page.route('**/api/**', route =>
+      route.fulfill({ status: 404, json: {} })
+    )
     await page.route('**/api/settings', route =>
       route.fulfill({
         status: 200,
         json: MINIMAL_EDITABLE_SETTINGS,
       })
+    )
+    await page.route('**/api/settings/draft', route =>
+      route.fulfill({ status: 200, json: { draft: null } })
     )
     await page.route('**/api/settings/readiness', route =>
       route.fulfill({
@@ -119,7 +127,7 @@ test.describe('Settings navigation', () => {
 
     // The selected parser that cannot be reached is the one thing called out.
     await expect(
-      panel.getByText(/endpoint is unreachable|服务地址连不上/)
+      matrix.getByText(/endpoint is unreachable|服务地址连不上/)
     ).toBeVisible()
     // The optional tool is folded behind its disclosure, not in the open list.
     await expect(
