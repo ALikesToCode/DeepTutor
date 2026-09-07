@@ -78,6 +78,7 @@ import {
   REPLY_NOT_DELIVERED,
 } from "@/lib/ask-user-state";
 import { notify } from "@/lib/notifications";
+import { copyText } from "@/lib/clipboard";
 import { useChatAutoScroll } from "@/hooks/useChatAutoScroll";
 import { useContextBudget } from "@/hooks/useContextBudget";
 import { useMeasuredHeight } from "@/hooks/useMeasuredHeight";
@@ -998,14 +999,13 @@ export default function ChatWorkspace() {
     return () => cancelAnimationFrame(frame);
   }, [awaitingUserCard, scrollToBottom, shouldAutoScrollRef]);
 
-  const copyAssistantMessage = useCallback(async (content: string) => {
-    if (!content.trim()) return;
-    try {
-      await navigator.clipboard.writeText(content);
-    } catch (error) {
-      console.error("Failed to copy assistant message:", error);
-    }
-  }, []);
+  // Deliberately does not catch. `CopyActionButton` renders 已复制 off this
+  // promise resolving, so swallowing the failure here is what made the button
+  // announce a success that never happened — to screen readers included.
+  const copyAssistantMessage = useCallback(
+    (content: string) => copyText(content),
+    [],
+  );
   /* ---- URL-driven session loading ---- */
 
   const navigateToHome = useCallback(() => {

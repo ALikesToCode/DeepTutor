@@ -3994,5 +3994,9 @@
   "readiness.detail.redis_unreachable": "Redis 连不上",
   "readiness.detail.redis_not_configured": "未配置",
   "readiness.detail.multiple_workers_require_redis": "多进程后端必须用 Redis 协调",
-  "readiness.detail.redis_available_but_memory_selected": "Redis 可用，可以把轮次协调切到它"
+  "readiness.detail.redis_available_but_memory_selected": "Redis 可用，可以把轮次协调切到它",
+  "Could not copy": "复制失败",
+  "The clipboard is not available in this browser.": "当前浏览器环境无法使用剪贴板。",
+  "attachments": "附件",
+  "references": "引用"
 }

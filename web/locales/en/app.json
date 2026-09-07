@@ -3994,5 +3994,9 @@
   "readiness.detail.redis_unreachable": "Redis is unreachable",
   "readiness.detail.redis_not_configured": "not configured",
   "readiness.detail.multiple_workers_require_redis": "more than one backend worker needs Redis coordination",
-  "readiness.detail.redis_available_but_memory_selected": "Redis is reachable — coordination could be switched to it"
+  "readiness.detail.redis_available_but_memory_selected": "Redis is reachable — coordination could be switched to it",
+  "Could not copy": "Could not copy",
+  "The clipboard is not available in this browser.": "The clipboard is not available in this browser.",
+  "attachments": "attachments",
+  "references": "references"
 }
