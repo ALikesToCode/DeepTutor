@@ -75,7 +75,7 @@ import { useAttachmentLimits } from "@/lib/attachment-limits";
 import {
   hasPendingAskUser,
   hasPendingUserCard,
-  REPLY_NOT_DELIVERED,
+  REPLY_SENT_AS_NEW_MESSAGE,
 } from "@/lib/ask-user-state";
 import { notify } from "@/lib/notifications";
 import { copyText } from "@/lib/clipboard";
@@ -1772,13 +1772,14 @@ export default function ChatWorkspace() {
       // not the only one — and a card that never rendered no longer strands
       // the learner with a turn they can only cancel.
       if (awaitingUserReplyRef.current) {
-        if (content.trim()) {
-          const sent = await submitUserReply({ text: content });
-          // The composer already cleared what they typed, so a silent drop
-          // would look like the assistant simply never replied.
-          if (!sent) notify(t(REPLY_NOT_DELIVERED), { tone: "error" });
-        }
-        return;
+        if (!content.trim()) return;
+        if (await submitUserReply({ text: content })) return;
+        // Refused: the turn that asked is gone. Do NOT stop here. The
+        // composer has already cleared the box, so returning discarded what
+        // they typed — while the error told them to "send a new message",
+        // which is exactly what this branch was preventing them from doing.
+        // Fall through and send it as one.
+        notify(t(REPLY_SENT_AS_NEW_MESSAGE));
       }
       if (
         (!content &&

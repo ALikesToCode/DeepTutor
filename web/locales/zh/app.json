@@ -3998,5 +3998,6 @@
   "Could not copy": "复制失败",
   "The clipboard is not available in this browser.": "当前浏览器环境无法使用剪贴板。",
   "attachments": "附件",
-  "references": "引用"
+  "references": "引用",
+  "That question is no longer waiting for an answer, so this was sent as a new message.": "这道题已经不再等待作答，所以这条内容作为新消息发送了。"
 }

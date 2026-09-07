@@ -3998,5 +3998,6 @@
   "Could not copy": "Could not copy",
   "The clipboard is not available in this browser.": "The clipboard is not available in this browser.",
   "attachments": "attachments",
-  "references": "references"
+  "references": "references",
+  "That question is no longer waiting for an answer, so this was sent as a new message.": "That question is no longer waiting for an answer, so this was sent as a new message."
 }
