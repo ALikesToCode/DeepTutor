@@ -706,6 +706,32 @@ class KnowledgeBaseManager:
 
         self._save_config()
 
+    def register_connected_entry(self, name: str, entry: dict) -> bool:
+        """Adopt an already-built connected-KB entry under this manager.
+
+        Every other ``register_*`` method builds a pointer entry from user
+        input. This one takes an entry that already exists elsewhere: a
+        connected KB has no ``<kb>/`` tree under ``base_dir``, so handing one
+        to a partner workspace means copying its ``kb_config.json`` row rather
+        than the folder that provisioning copies for an indexed KB.
+
+        Returns ``False`` when the name is already registered here, leaving
+        the existing entry untouched, so callers can provision idempotently.
+        """
+        name = (name or "").strip()
+        if not name:
+            raise ValueError("Knowledge base name is required.")
+        if not is_connected_kb(entry):
+            raise ValueError(f"Not a connected knowledge base entry: {name}")
+
+        self.config = self._load_config()
+        knowledge_bases = self.config.setdefault("knowledge_bases", {})
+        if name in knowledge_bases:
+            return False
+        knowledge_bases[name] = dict(entry)
+        self._save_config()
+        return True
+
     def register_obsidian_vault(self, name: str, vault_path: str, description: str = "") -> dict:
         """Register a connected Obsidian vault as a pointer-type KB.
 
