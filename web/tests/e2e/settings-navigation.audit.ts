@@ -1,9 +1,63 @@
 import { expect, test } from '@playwright/test'
 
+function emptyCatalog() {
+  return {
+    version: 1,
+    services: {
+      llm: { active_profile_id: null, active_model_id: null, profiles: [] },
+      task: { active_profile_id: null, active_model_id: null, profiles: [] },
+      embedding: {
+        active_profile_id: null,
+        active_model_id: null,
+        profiles: [],
+      },
+      search: { active_profile_id: null, profiles: [] },
+      tts: { active_profile_id: null, active_model_id: null, profiles: [] },
+      stt: { active_profile_id: null, active_model_id: null, profiles: [] },
+      imagegen: {
+        active_profile_id: null,
+        active_model_id: null,
+        profiles: [],
+      },
+      videogen: {
+        active_profile_id: null,
+        active_model_id: null,
+        profiles: [],
+      },
+    },
+  }
+}
+
 test.describe('Settings navigation', () => {
-  test('reports what is ready without dressing optional gaps as faults', async ({
-    page,
-  }) => {
+  test('reports what is ready without dressing optional gaps as faults', async ({ page }) => {
+    await page.route('**/api/**', route =>
+      route.fulfill({ status: 404, json: { detail: 'not mocked' } })
+    )
+    await page.route('**/api/auth/status', route =>
+      route.fulfill({
+        status: 200,
+        json: { enabled: false, authenticated: false },
+      })
+    )
+    await page.route('**/api/settings', route =>
+      route.fulfill({
+        status: 200,
+        json: {
+          catalog: emptyCatalog(),
+          ui: {
+            theme: 'light',
+            language: 'en',
+            response_language: 'en',
+            code_block_theme: 'github',
+            code_block_show_line_numbers: false,
+            code_block_wrap_long_lines: false,
+          },
+        },
+      })
+    )
+    await page.route('**/api/settings/draft', route =>
+      route.fulfill({ status: 200, json: { draft: null } })
+    )
     await page.route('**/api/settings/readiness', route =>
       route.fulfill({
         status: 200,
@@ -70,17 +124,13 @@ test.describe('Settings navigation', () => {
 
     await page.goto('/settings')
 
-    const panel = page.locator(
-      'section[aria-labelledby="capability-readiness-title"]'
-    )
+    const panel = page.locator('section[aria-labelledby="capability-readiness-title"]')
     await expect(panel).toBeVisible()
     const matrix = page.getByTestId('settings-readiness-matrix')
     await expect(matrix).toBeVisible()
 
     // The selected parser that cannot be reached is the one thing called out.
-    await expect(
-      panel.getByText(/endpoint is unreachable|服务地址连不上/)
-    ).toBeVisible()
+    await expect(panel.getByText(/endpoint is unreachable|服务地址连不上/).first()).toBeVisible()
     // The optional tool is folded behind its disclosure, not in the open list.
     await expect(
       matrix.getByText(/Video generation tool|视频生成工具/, { exact: true })
